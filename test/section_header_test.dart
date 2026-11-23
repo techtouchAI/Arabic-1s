@@ -31,7 +31,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    final action = tester.getSize(find.byType(TextButton));
+    // TextButton.icon builds a private TextButton subclass.
+    final action = tester.getSize(find.byWidgetPredicate((w) => w is TextButton));
     expect(action.width, lessThanOrEqualTo(320 * SectionHeader.maxTrailingFraction));
     expect(find.text('استبدال من بنك الإملاء'), findsOneWidget);
   });
