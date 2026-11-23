@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/local/progress_store.dart';
+import '../../data/local/saved_exam_store.dart';
 import '../../domain/models/exam_paper.dart';
 import '../../domain/models/library.dart';
 import '../../domain/models/progress.dart';
 import '../../domain/services/search_engine.dart';
+import 'saved_exam_library.dart';
 
 class AppState extends ChangeNotifier {
   AppState({
@@ -14,12 +16,17 @@ class AppState extends ChangeNotifier {
     required this.examBank,
     required ProgressStore store,
     StudyProgress? initialProgress,
+    SavedExamLibrary? savedExams,
   })  : _store = store,
         _progress = initialProgress ?? store.read(),
-        searchEngine = CurriculumSearchEngine(library);
+        searchEngine = CurriculumSearchEngine(library),
+        savedExams = savedExams ?? SavedExamLibrary(MemorySavedExamStore());
 
   final StudyLibrary library;
   final ExamBank examBank;
+
+  /// Exam papers created by the teacher, autosaved by the composer.
+  final SavedExamLibrary savedExams;
   final CurriculumSearchEngine searchEngine;
   final ProgressStore _store;
 

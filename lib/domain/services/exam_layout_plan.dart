@@ -38,6 +38,22 @@ class ExamHeaderLayout {
   }
 }
 
+/// Degree badge text and the end-side column reserved for it, shared by the
+/// Word builder and the live preview so both wrap a question identically.
+abstract final class ExamDegreeBadge {
+  static String text(int degree, {required bool westernDigits}) =>
+      '( ${formatDegreeLabel(degree, westernDigits: westernDigits)} )';
+
+  /// Width, in points, reserved at the end (left) of a question line. It is a
+  /// deliberately generous estimate — half an em per character plus a one-em
+  /// gutter, while Arabic letters and digits average under 0.4 em — because
+  /// neither renderer may rely on installed font metrics. Overestimating only
+  /// wraps a long prompt slightly earlier; underestimating would let the badge
+  /// fall onto a line of its own.
+  static double columnWidthPt(String badge, num fontSizePt) =>
+      (badge.runes.length * 0.5 + 1) * fontSizePt;
+}
+
 enum ExamParagraphKind { heading, prompt, item }
 
 /// Renderer-neutral, ordered exam content shared by Word and the live preview.

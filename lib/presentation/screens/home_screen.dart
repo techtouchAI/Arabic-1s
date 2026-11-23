@@ -13,6 +13,7 @@ import 'exam_composer_screen.dart';
 import 'glossary_screen.dart';
 import 'lesson_screen.dart';
 import 'question_print_screen.dart';
+import 'saved_exams_screen.dart';
 import 'settings_screen.dart';
 import 'unit_screen.dart';
 
@@ -104,22 +105,45 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                     );
-                    if (wide) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(child: composerCard),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(child: printCard),
-                        ],
-                      );
-                    }
+                    final savedCard = ListenableBuilder(
+                      listenable: state.savedExams,
+                      builder: (BuildContext context, _) {
+                        final count = state.savedExams.papers.length;
+                        return _ToolActionCard(
+                          cardKey: const ValueKey<String>('open-saved-exams'),
+                          icon: Icons.inventory_2_outlined,
+                          title: 'أسئلتي المحفوظة',
+                          subtitle: count == 0
+                              ? 'كل ورقة أسئلة تنشئها تُحفظ هنا تلقائياً مع كل تعديل'
+                              : 'عدد الأوراق المحفوظة: ${toArabicDigits(count)} • تُحدَّث تلقائياً مع كل تعديل',
+                          accent: scheme.tertiary,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const SavedExamsScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    );
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        composerCard,
-                        const SizedBox(height: AppSpacing.sm),
-                        printCard,
+                        if (wide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(child: composerCard),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(child: printCard),
+                            ],
+                          )
+                        else ...<Widget>[
+                          composerCard,
+                          const SizedBox(height: AppSpacing.sm),
+                          printCard,
+                        ],
+                        SizedBox(height: wide ? AppSpacing.md : AppSpacing.sm),
+                        savedCard,
                       ],
                     );
                   },

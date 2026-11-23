@@ -13,8 +13,15 @@
 /// 3. Right-aligned section titles with flush-left marks, as in the sources;
 ///    single-underlined section labels (`الانشاء : ( 30 درجة )`,
 ///    `قواعد اللغة العربية : ( 35 درجة )`, `الاملاء : ( 15 درجة )`).
-/// 4. Flush-left tab stop (`<w:tab w:val="left" w:pos="10466"/>`) so every
-///    branch/question degree badge aligns cleanly at the far left margin.
+/// 4. Degree badges sit on the same line as their question, flush with the
+///    left margin. Word reads every tab/indent/alignment of a `w:bidi`
+///    paragraph *logically*: `pos` is measured from the right (leading)
+///    margin, `left` means start and `right` means end. The badge therefore
+///    uses an end tab (`<w:tab w:val="right" w:pos="10466"/>`) so the badge
+///    *ends* at the left margin, and an end indent (`<w:ind w:right=…/>`)
+///    reserves the badge column so a long prompt wraps before it instead of
+///    pushing the badge onto a line of its own. Word honours a custom tab stop
+///    placed beyond the paragraph's end indent.
 /// 5. Balanced `_..._` markers in prompts and items emit `<w:u w:val="single"/>`
 ///    runs for underlined words/phrases (`اعرب ما تحته خط`, etc.).
 /// 6. Supports `vertical`, `inline`, and `prose` item layouts, closing wish,
@@ -54,14 +61,6 @@ class ExamDocxBuilder {
     return buildStoredZip(entries);
   }
 
-  static String _degreeBadge(int degree, ArabicExamPaper paper) {
-    final label = formatDegreeLabel(
-      degree,
-      westernDigits: paper.typography.useWesternDigits,
-    );
-    return '( $label )';
-  }
-
   static String _documentXml(ArabicExamPaper paper) {
     final bodyHalfPt = paper.typography.bodySizePt * 2;
     final headingHalfPt = paper.typography.headingSizePt * 2;
@@ -85,11 +84,12 @@ class ExamDocxBuilder {
     if (paper.header.includeStudentFields) {
       buf.write(
         '<w:p><w:pPr>'
-        '<w:bidi/>'
         '<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="1" w:color="000000"/></w:pBdr>'
-        '<w:tabs><w:tab w:val="right" w:pos="${printableWidthDxa ~/ 2}"/></w:tabs>'
+        // Start tab (logical `left`) at the page centre: the exam-number label
+        // begins in the left half, exactly like the two-column preview.
+        '<w:tabs><w:tab w:val="left" w:pos="${printableWidthDxa ~/ 2}"/></w:tabs>'
+        '<w:bidi/>'
         '<w:spacing w:before="0" w:after="100" w:line="240" w:lineRule="auto"/>'
-        '<w:jc w:val="right"/>'
         '</w:pPr>'
         '${_run(paper.header.studentNameLabel, font, headerHalfPt, bold: false)}'
         '<w:r>${_rPr(font, headerHalfPt, bold: false)}<w:tab/></w:r>'
@@ -99,8 +99,8 @@ class ExamDocxBuilder {
     } else {
       buf.write(
         '<w:p><w:pPr>'
-        '<w:bidi/>'
         '<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="4" w:color="000000"/></w:pBdr>'
+        '<w:bidi/>'
         '<w:spacing w:before="20" w:after="90" w:line="240" w:lineRule="auto"/>'
         '</w:pPr></w:p>',
       );
@@ -209,20 +209,41 @@ class ExamDocxBuilder {
   ) {
     final before = (paragraph.spaceBeforePt * 20).round();
     final line = (paper.typography.spacing.lineHeight * 240).round();
-    final indent = (paragraph.indentPt * 20).round();
-    final hasBadge = paragraph.degree != null;
+    final startIndent = (paragraph.indentPt * 20).round();
+    final degree = paragraph.degree;
+    final badge = degree == null
+        ? null
+        : ExamDegreeBadge.text(
+            degree,
+            westernDigits: paper.typography.useWesternDigits,
+          );
+    final endIndent = badge == null
+        ? 0
+        : (ExamDegreeBadge.columnWidthPt(badge, halfPt / 2) * 20).ceil();
+    // Alignment is left to the RTL default (start = right edge): an explicit
+    // `w:jc="right"` means *end* in a Word bidi paragraph, i.e. flush left.
     return '<w:p><w:pPr>'
         '${paragraph.keepWithNext ? '<w:keepNext/>' : ''}'
         '<w:keepLines/>'
-        '${hasBadge ? '<w:tabs><w:tab w:val="left" w:pos="$printableWidthDxa"/></w:tabs>' : ''}'
+        '${badge != null ? '<w:tabs><w:tab w:val="right" w:pos="$printableWidthDxa"/></w:tabs>' : ''}'
         '<w:bidi/>'
         '<w:spacing w:before="$before" w:after="0" w:line="$line" w:lineRule="auto"/>'
-        '${indent > 0 ? '<w:ind w:right="$indent"/>' : ''}'
-        '<w:jc w:val="right"/>'
+        '${_indentXml(startDxa: startIndent, endDxa: endIndent)}'
         '</w:pPr>'
         '${_richRuns(paragraph.text, font: font, sizeHalfPt: halfPt)}'
-        '${hasBadge ? '<w:r>${_rPr(font, halfPt)}<w:tab/></w:r>${_run(_degreeBadge(paragraph.degree!, paper), font, halfPt)}' : ''}'
+        '${badge != null ? '<w:r>${_rPr(font, halfPt)}<w:tab/></w:r>${_run(badge, font, halfPt)}' : ''}'
         '</w:p>';
+  }
+
+  /// `w:left`/`w:right` are the start/end indents of a bidi paragraph.
+  static String _indentXml({required int startDxa, required int endDxa}) {
+    if (startDxa <= 0 && endDxa <= 0) {
+      return '';
+    }
+    return '<w:ind'
+        '${startDxa > 0 ? ' w:left="$startDxa"' : ''}'
+        '${endDxa > 0 ? ' w:right="$endDxa"' : ''}'
+        '/>';
   }
 
   static String _richRuns(
@@ -302,11 +323,12 @@ class ExamDocxBuilder {
   }) {
     final bXml = bold ? '<w:b/><w:bCs/>' : '';
     final uXml = underline ? '<w:u w:val="single"/>' : '';
+    // Children follow the CT_RPr schema order (`w:u` comes after `w:szCs`).
     return '<w:rPr>'
         '<w:rFonts w:ascii="$escapedFont" w:hAnsi="$escapedFont" w:cs="$escapedFont"/>'
         '$bXml'
-        '$uXml'
         '<w:sz w:val="$halfPt"/><w:szCs w:val="$halfPt"/>'
+        '$uXml'
         '<w:rtl/>'
         '<w:lang w:val="en-US" w:bidi="ar-IQ"/>'
         '</w:rPr>';

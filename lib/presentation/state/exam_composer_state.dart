@@ -9,12 +9,15 @@ import '../../domain/models/progress.dart';
 /// Mutable controller for composing, customizing, and exporting official
 /// First Intermediate Arabic Word (`.docx`) exam papers.
 class ExamComposerController extends ChangeNotifier {
+  /// Starts from [initialPaper] when reopening a saved paper, otherwise from
+  /// the default template personalised for [teacherProfile].
   ExamComposerController({
     required this.examBank,
     required TeacherProfile teacherProfile,
     required CurriculumPart activePart,
+    ArabicExamPaper? initialPaper,
   }) {
-    _paper = _initialPaper(teacherProfile, activePart);
+    _paper = initialPaper ?? _initialPaper(teacherProfile, activePart);
   }
 
   final ExamBank examBank;
