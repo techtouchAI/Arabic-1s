@@ -1469,3 +1469,97 @@ EXAM_BANK: dict = {
     # Source Word files are authoritative; do not duplicate their questions here.
     "officialTemplates": load_official_templates(),
 }
+
+
+# ---------------------------------------------------------------------------
+# Per-topic bank ownership: every bank item belongs to a curriculum unit so
+# the exam composer can offer a bank per topic / question / branch. Items
+# absent from this map are general (no unit) and stay visible under "عام".
+# ---------------------------------------------------------------------------
+
+_BANK_UNIT_IDS: dict = {
+    # --- Composition topics (expression lessons of their units) ---
+    "comp-p1-1": "p1-u2",
+    "comp-p1-2": "p1-u7",
+    "comp-p1-3": "p1-u5",
+    "comp-p1-4": "p1-u4",
+    "comp-p1-5": "p1-u8",
+    "comp-p1-6": "p1-u10",
+    "comp-p2-1": "p2-u2",
+    "comp-p2-2": "p2-u9",
+    "comp-p2-3": "p2-u6",
+    "comp-p2-4": "p2-u5",
+    "comp-p2-5": "p2-u1",
+    "comp-p2-6": "p2-u8",
+    # --- Grammar items, Part 1 (unit grammarTitle in UNIT_SPECS) ---
+    "gr-p1-1": "p1-u6",
+    "gr-p1-2": "p1-u9",
+    "gr-p1-3": "p1-u10",
+    "gr-p1-4": "p1-u5",
+    "gr-p1-5": "p1-u7",
+    "gr-p1-6": "p1-u4",
+    "gr-p1-7": "p1-u5",
+    "gr-p1-8": "p1-u3",
+    "gr-p1-9": "p1-u8",
+    "gr-p1-10": "p1-u1",
+    "gr-p1-11": "p1-u5",
+    "gr-p1-12": "p1-u2",
+    "gr-p1-13": "p1-u2",
+    "gr-p1-14": "p1-u2",
+    "gr-p1-15": "p1-u3",
+    "gr-p1-16": "p1-u10",
+    "gr-p1-17": "p1-u3",
+    "gr-p1-18": "p1-u7",
+    "gr-p1-19": "p1-u5",
+    "gr-p1-20": "p1-u6",
+    "gr-p1-22": "p1-u6",
+    "gr-p1-26": "p1-u4",
+    "gr-p1-29": "p1-u8",
+    # --- Grammar items, Part 2 ---
+    "gr-p2-1": "p2-u5",
+    "gr-p2-2": "p2-u4",
+    "gr-p2-5": "p2-u8",
+    "gr-p2-6": "p2-u1",
+    "gr-p2-7": "p2-u3",
+    "gr-p2-8": "p2-u6",
+    "gr-p2-9": "p2-u9",
+    "gr-p2-11": "p2-u1",
+    "gr-p2-12": "p2-u2",
+    "gr-p2-13": "p2-u9",
+    "gr-p2-18": "p2-u8",
+    "gr-p2-19": "p2-u9",
+    "gr-p2-22": "p2-u8",
+    "gr-p2-24": "p2-u2",
+    "gr-p2-25": "p2-u8",
+    "gr-p2-26": "p2-u7",
+    "gr-p2-27": "p2-u7",
+    "gr-p2-28": "p2-u7",
+    "gr-p2-29": "p2-u7",
+    "gr-p2-30": "p2-u7",
+    "gr-p2-31": "p2-u7",
+    "gr-p2-32": "p2-u2",
+    # --- Orthography items (جامع الإملاء والخط والتعبير) ---
+    "or-p1-1": "orthography-expression",
+    "or-p1-2": "orthography-expression",
+    "or-p1-3": "orthography-expression",
+    "or-p1-4": "orthography-expression",
+    "or-p1-5": "orthography-expression",
+    "or-p2-1": "orthography-expression",
+    "or-p2-2": "orthography-expression",
+    "or-p2-3": "orthography-expression",
+    "or-p2-4": "orthography-expression",
+    "or-p2-5": "orthography-expression",
+    "or-p2-6": "orthography-expression",
+}
+
+for _bank_items in (
+    EXAM_BANK["compositionTopics"],
+    EXAM_BANK["grammarItems"],
+    EXAM_BANK["orthographyItems"],
+):
+    for _bank_item in _bank_items:
+        _owner = _BANK_UNIT_IDS.get(_bank_item["id"])
+        if _owner is not None:
+            _bank_item["unitId"] = _owner
+
+del _bank_items, _bank_item, _owner

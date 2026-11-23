@@ -563,6 +563,8 @@ class CompositionBankItem {
     required this.id,
     required this.part,
     required this.text,
+    this.title = '',
+    this.unitId = '',
   });
 
   factory CompositionBankItem.fromJson(Map<String, dynamic> json) =>
@@ -570,11 +572,20 @@ class CompositionBankItem {
         id: json['id'] as String,
         part: json['part'] as String,
         text: json['text'] as String,
+        title: (json['title'] as String?) ?? '',
+        unitId: (json['unitId'] as String?) ?? '',
       );
 
   final String id;
   final String part;
   final String text;
+
+  /// Short display title from the bank (`title` in JSON); empty for legacy
+  /// records, in which case callers fall back to [text].
+  final String title;
+
+  /// Owning curriculum unit (`p1-u1` … `p2-u9`); empty for general topics.
+  final String unitId;
 }
 
 class GrammarBankItem {
@@ -585,6 +596,7 @@ class GrammarBankItem {
     required this.style,
     required this.promptGroup,
     required this.text,
+    this.defaultDegree = 5,
   });
 
   factory GrammarBankItem.fromJson(Map<String, dynamic> json) {
@@ -614,6 +626,7 @@ class GrammarBankItem {
       style: style,
       promptGroup: category,
       text: json['text'] as String,
+      defaultDegree: (json['defaultDegree'] as int?) ?? 5,
     );
   }
 
@@ -623,6 +636,10 @@ class GrammarBankItem {
   final String style;
   final String promptGroup;
   final String text;
+
+  /// Suggested degree when this item replaces a whole branch; the teacher
+  /// can still adjust it with the branch stepper afterwards.
+  final int defaultDegree;
 }
 
 class OrthographyBankItem {
@@ -634,13 +651,17 @@ class OrthographyBankItem {
     required this.items,
     required this.defaultDegree,
     required this.itemLayout,
+    this.title = '',
   });
 
   factory OrthographyBankItem.fromJson(Map<String, dynamic> json) =>
       OrthographyBankItem(
         id: json['id'] as String,
         part: json['part'] as String,
-        unitId: (json['unitId'] as String?) ?? (json['title'] as String?) ?? '',
+        // `unitId` is the owning curriculum unit; the display `title` must
+        // never be used as a unit id (legacy records simply have no unit).
+        unitId: (json['unitId'] as String?) ?? '',
+        title: (json['title'] as String?) ?? '',
         prompt: json['prompt'] as String,
         items: ((json['items'] as List<dynamic>?) ?? const <dynamic>[])
             .map((e) => e as String)
@@ -656,6 +677,10 @@ class OrthographyBankItem {
   final List<String> items;
   final int defaultDegree;
   final ExamItemLayout itemLayout;
+
+  /// Short display title from the bank (`title` in JSON); empty for legacy
+  /// records, in which case callers fall back to [prompt].
+  final String title;
 }
 
 class OfficialExamTemplate {
