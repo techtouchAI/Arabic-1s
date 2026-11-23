@@ -1810,11 +1810,16 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
     final cx = _viewportWidth / 2;
     final cy = _viewportHeight / 2;
     final k = clamped / current;
+    // Zoom about the viewport centre: T(cx, cy) · S(k) · T(−cx, −cy).
+    // `Matrix4.translate`/`scale` are deprecated in vector_math 2.2.0 (pinned
+    // by Flutter 3.35) and fail `flutter analyze --fatal-infos`;
+    // `translateByDouble`/`scaleByDouble` are their semantics-identical
+    // replacements, and `multiplied` keeps the composition statically typed.
     final zoom = Matrix4.identity()
-      ..translate(cx, cy)
-      ..scale(k)
-      ..translate(-cx, -cy);
-    _controller.value = zoom * _controller.value;
+      ..translateByDouble(cx, cy, 0.0, 1.0)
+      ..scaleByDouble(k, k, k, 1.0)
+      ..translateByDouble(-cx, -cy, 0.0, 1.0);
+    _controller.value = zoom.multiplied(_controller.value);
   }
 
   void _fitWidth() {
