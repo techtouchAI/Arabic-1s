@@ -144,5 +144,6 @@ void main() {
     await _settle(tester);
     expect(state.savedExams.byId(record.id), isNull);
     expect(state.savedExams.papers, hasLength(1));
+    expect(tester.takeException(), isNull);
   });
 }

@@ -280,11 +280,13 @@ class _DegreeSummaryBadge extends StatelessWidget {
             color: color,
           ),
           const SizedBox(width: 6),
-          Text(
-            balanced
-                ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
-                : 'راجع مجموع درجات الأفرع',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+          Flexible(
+            child: Text(
+              balanced
+                  ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
+                  : 'راجع مجموع درجات الأفرع',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+            ),
           ),
         ],
       ),
