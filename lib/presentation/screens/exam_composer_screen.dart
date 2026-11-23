@@ -1347,178 +1347,180 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
             AppSpacing.lg,
             AppSpacing.md,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(widget.title, style: theme.textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'ابحث وصفِّ حسب الجزء والنوع والوحدة، ثم اختر بحرية.',
-                style: theme.textTheme.bodySmall,
-              ),
-              if (showSourceSwitch) ...<Widget>[
-                const SizedBox(height: AppSpacing.sm),
-                SegmentedButton<_BankSource>(
-                  segments: const <ButtonSegment<_BankSource>>[
-                    ButtonSegment<_BankSource>(
-                      value: _BankSource.grammar,
-                      label: Text('بنك القواعد'),
-                    ),
-                    ButtonSegment<_BankSource>(
-                      value: _BankSource.unitQuestions,
-                      label: Text('أسئلة الوحدات'),
-                    ),
-                  ],
-                  selected: <_BankSource>{_source},
-                  onSelectionChanged: (Set<_BankSource> next) {
-                    if (next.isNotEmpty) {
-                      setState(() => _source = next.first);
-                    }
-                  },
+          child: SingleChildScrollView(
+            controller: scroll,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(widget.title, style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'ابحث وصفِّ حسب الجزء والنوع والوحدة، ثم اختر بحرية.',
+                  style: theme.textTheme.bodySmall,
                 ),
-              ],
-              if (widget.modes.length > 1) ...<Widget>[
-                const SizedBox(height: AppSpacing.sm),
-                SegmentedButton<BankApplyMode>(
-                  segments: <ButtonSegment<BankApplyMode>>[
-                    for (final m in widget.modes)
-                      ButtonSegment<BankApplyMode>(
-                        value: m,
-                        label: Text(_modeLabel(m)),
+                if (showSourceSwitch) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<_BankSource>(
+                    segments: const <ButtonSegment<_BankSource>>[
+                      ButtonSegment<_BankSource>(
+                        value: _BankSource.grammar,
+                        label: Text('بنك القواعد'),
                       ),
-                  ],
-                  selected: <BankApplyMode>{_mode},
-                  onSelectionChanged: (Set<BankApplyMode> next) {
-                    if (next.isNotEmpty) {
-                      setState(() => _mode = next.first);
-                    }
-                  },
-                ),
-              ],
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                key: const ValueKey<String>('bank-search'),
-                controller: _search,
-                decoration: const InputDecoration(
-                  labelText: 'بحث في البنك',
-                  prefixIcon: Icon(Icons.search),
-                  isDense: true,
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  ChoiceChip(
-                    label: const Text('كل الأجزاء'),
-                    selected: _part == null,
-                    onSelected: (_) => setState(() => _part = null),
-                  ),
-                  ChoiceChip(
-                    label: const Text('الجزء الأول'),
-                    selected: _part == 'part1',
-                    onSelected: (_) => setState(() => _part = 'part1'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('الجزء الثاني'),
-                    selected: _part == 'part2',
-                    onSelected: (_) => setState(() => _part = 'part2'),
-                  ),
-                  if (showStyle) ...<Widget>[
-                    ChoiceChip(
-                      label: const Text('كل الأنواع'),
-                      selected: _style == null,
-                      onSelected: (_) => setState(() => _style = null),
-                    ),
-                    for (final s in ExamBankPicker.grammarStyles)
-                      ChoiceChip(
-                        label: Text(ExamBankPicker.grammarStyleLabel(s)),
-                        selected: _style == s,
-                        onSelected: (_) => setState(() => _style = s),
+                      ButtonSegment<_BankSource>(
+                        value: _BankSource.unitQuestions,
+                        label: Text('أسئلة الوحدات'),
                       ),
-                  ],
-                  if (showKind) ...<Widget>[
-                    ChoiceChip(
-                      label: const Text('كل الأنواع'),
-                      selected: _kind == null,
-                      onSelected: (_) => setState(() => _kind = null),
-                    ),
-                    for (final k in QuestionKind.values)
-                      ChoiceChip(
-                        label: Text(ExamBankPicker.questionKindLabel(k)),
-                        selected: _kind == k,
-                        onSelected: (_) => setState(() => _kind = k),
-                      ),
-                  ],
+                    ],
+                    selected: <_BankSource>{_source},
+                    onSelectionChanged: (Set<_BankSource> next) {
+                      if (next.isNotEmpty) {
+                        setState(() => _source = next.first);
+                      }
+                    },
+                  ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                key: const ValueKey<String>('bank-unit-filter'),
-                initialValue: _unitId ?? '__all__',
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'الوحدة / الموضوع',
-                  isDense: true,
-                ),
-                items: <DropdownMenuItem<String>>[
-                  const DropdownMenuItem<String>(
-                    value: '__all__',
-                    child: Text('كل الوحدات'),
+                if (widget.modes.length > 1) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<BankApplyMode>(
+                    segments: <ButtonSegment<BankApplyMode>>[
+                      for (final m in widget.modes)
+                        ButtonSegment<BankApplyMode>(
+                          value: m,
+                          label: Text(_modeLabel(m)),
+                        ),
+                    ],
+                    selected: <BankApplyMode>{_mode},
+                    onSelectionChanged: (Set<BankApplyMode> next) {
+                      if (next.isNotEmpty) {
+                        setState(() => _mode = next.first);
+                      }
+                    },
                   ),
-                  const DropdownMenuItem<String>(
-                    value: '',
-                    child: Text('عام (بدون وحدة)'),
-                  ),
-                  for (final u in units)
-                    if (u.questions.isNotEmpty ||
-                        u.id == 'orthography-expression')
-                      DropdownMenuItem<String>(
-                        value: u.id,
-                        child: Text(u.displayTitle),
-                      ),
                 ],
-                onChanged: (String? v) {
-                  setState(() => _unitId = v == '__all__' ? null : v);
-                },
-              ),
-              if (showTarget) ...<Widget>[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  key: const ValueKey<String>('bank-search'),
+                  controller: _search,
+                  decoration: const InputDecoration(
+                    labelText: 'بحث في البنك',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
-                    Text(
-                      'السؤال المستهدف:',
-                      style: theme.textTheme.labelMedium,
+                    ChoiceChip(
+                      label: const Text('كل الأجزاء'),
+                      selected: _part == null,
+                      onSelected: (_) => setState(() => _part = null),
                     ),
-                    for (var qi = 0; qi < widget.questionCount; qi++)
+                    ChoiceChip(
+                      label: const Text('الجزء الأول'),
+                      selected: _part == 'part1',
+                      onSelected: (_) => setState(() => _part = 'part1'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('الجزء الثاني'),
+                      selected: _part == 'part2',
+                      onSelected: (_) => setState(() => _part = 'part2'),
+                    ),
+                    if (showStyle) ...<Widget>[
                       ChoiceChip(
-                        label: Text('س${toArabicDigits(qi + 1)}'),
-                        selected: _targetQuestion == qi,
-                        onSelected: (_) =>
-                            setState(() => _targetQuestion = qi),
+                        label: const Text('كل الأنواع'),
+                        selected: _style == null,
+                        onSelected: (_) => setState(() => _style = null),
                       ),
+                      for (final s in ExamBankPicker.grammarStyles)
+                        ChoiceChip(
+                          label: Text(ExamBankPicker.grammarStyleLabel(s)),
+                          selected: _style == s,
+                          onSelected: (_) => setState(() => _style = s),
+                        ),
+                    ],
+                    if (showKind) ...<Widget>[
+                      ChoiceChip(
+                        label: const Text('كل الأنواع'),
+                        selected: _kind == null,
+                        onSelected: (_) => setState(() => _kind = null),
+                      ),
+                      for (final k in QuestionKind.values)
+                        ChoiceChip(
+                          label: Text(ExamBankPicker.questionKindLabel(k)),
+                          selected: _kind == k,
+                          onSelected: (_) => setState(() => _kind = k),
+                        ),
+                    ],
                   ],
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey<String>('bank-unit-filter'),
+                  initialValue: _unitId ?? '__all__',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الوحدة / الموضوع',
+                    isDense: true,
+                  ),
+                  items: <DropdownMenuItem<String>>[
+                    const DropdownMenuItem<String>(
+                      value: '__all__',
+                      child: Text('كل الوحدات'),
+                    ),
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('عام (بدون وحدة)'),
+                    ),
+                    for (final u in units)
+                      if (u.questions.isNotEmpty ||
+                          u.id == 'orthography-expression')
+                        DropdownMenuItem<String>(
+                          value: u.id,
+                          child: Text(u.displayTitle),
+                        ),
+                  ],
+                  onChanged: (String? v) {
+                    setState(() => _unitId = v == '__all__' ? null : v);
+                  },
+                ),
+                if (showTarget) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        'السؤال المستهدف:',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                      for (var qi = 0; qi < widget.questionCount; qi++)
+                        ChoiceChip(
+                          label: Text('س${toArabicDigits(qi + 1)}'),
+                          selected: _targetQuestion == qi,
+                          onSelected: (_) =>
+                              setState(() => _targetQuestion = qi),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                _BankResults(
+                  bank: bank,
+                  library: widget.library,
+                  source: _source,
+                  part: _part,
+                  style: _style,
+                  unitId: _unitId,
+                  kind: _kind,
+                  query: _search.text,
+                  onPick: _pick,
+                ),
               ],
-              const SizedBox(height: AppSpacing.sm),
-              _BankResults(
-                controller: scroll,
-                bank: bank,
-                library: widget.library,
-                source: _source,
-                part: _part,
-                style: _style,
-                unitId: _unitId,
-                kind: _kind,
-                query: _search.text,
-                onPick: _pick,
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -1526,9 +1528,10 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
   }
 }
 
+/// Bank results rendered inline inside the sheet's shared scrollable, so
+/// the sheet can scroll (and drag) at any extent without layout overflow.
 class _BankResults extends StatelessWidget {
   const _BankResults({
-    required this.controller,
     required this.bank,
     required this.library,
     required this.source,
@@ -1540,7 +1543,6 @@ class _BankResults extends StatelessWidget {
     required this.onPick,
   });
 
-  final ScrollController controller;
   final ExamBank bank;
   final StudyLibrary library;
   final _BankSource source;
@@ -1565,37 +1567,11 @@ class _BankResults extends StatelessWidget {
           unitId: unitId,
           query: query,
         );
-        return Expanded(
-          child: items.isEmpty
-              ? const _BankEmptyState()
-              : ListView.builder(
-                  controller: controller,
-                  itemCount: items.length,
-                  itemBuilder: (BuildContext context, int i) {
-                    final item = items[i];
-                    final unitTitle =
-                        ExamBankPicker.unitTitleFor(library, item.unitId);
-                    return ListTile(
-                      key: ValueKey<String>('bank-item-${item.id}'),
-                      contentPadding: EdgeInsets.zero,
-                      title: UnderlineRichText(item.text),
-                      subtitle: Text(
-                        '${_partLabel(item.part)} • '
-                        '${ExamBankPicker.grammarStyleLabel(item.style)}'
-                        '${unitTitle == null ? '' : ' • $unitTitle'}',
-                      ),
-                      trailing: const Icon(Icons.add_circle_outline),
-                      onTap: () => onPick(
-                        BankSelection(
-                          text: item.text,
-                          prompt: item.text,
-                          degree: item.defaultDegree,
-                          title: item.promptGroup,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _grammarTile(item),
+          ],
         );
       case _BankSource.orthography:
         final items = ExamBankPicker.filterOrthographyItems(
@@ -1604,45 +1580,11 @@ class _BankResults extends StatelessWidget {
           unitId: unitId,
           query: query,
         );
-        return Expanded(
-          child: items.isEmpty
-              ? const _BankEmptyState()
-              : ListView.builder(
-                  controller: controller,
-                  itemCount: items.length,
-                  itemBuilder: (BuildContext context, int i) {
-                    final item = items[i];
-                    final unitTitle =
-                        ExamBankPicker.unitTitleFor(library, item.unitId);
-                    return ListTile(
-                      key: ValueKey<String>('bank-item-${item.id}'),
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        item.title.isNotEmpty ? item.title : item.prompt,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${_partLabel(item.part)}'
-                        '${unitTitle == null ? '' : ' • $unitTitle'}'
-                        '${item.items.isEmpty ? '' : ' • ${item.items.join(' • ')}'}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const Icon(Icons.add_circle_outline),
-                      onTap: () => onPick(
-                        BankSelection(
-                          text: item.prompt,
-                          prompt: item.prompt,
-                          items: item.items,
-                          degree: item.defaultDegree,
-                          layout: item.itemLayout,
-                          title: item.title,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _orthographyTile(item),
+          ],
         );
       case _BankSource.composition:
         final items = ExamBankPicker.filterCompositionTopics(
@@ -1651,42 +1593,11 @@ class _BankResults extends StatelessWidget {
           unitId: unitId,
           query: query,
         );
-        return Expanded(
-          child: items.isEmpty
-              ? const _BankEmptyState()
-              : ListView.builder(
-                  controller: controller,
-                  itemCount: items.length,
-                  itemBuilder: (BuildContext context, int i) {
-                    final item = items[i];
-                    final unitTitle =
-                        ExamBankPicker.unitTitleFor(library, item.unitId);
-                    final hasTitle = item.title.trim().isNotEmpty;
-                    return ListTile(
-                      key: ValueKey<String>('bank-item-${item.id}'),
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        hasTitle ? item.title : item.text,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        hasTitle
-                            ? '${_partLabel(item.part)}'
-                                  '${unitTitle == null ? '' : ' • $unitTitle'}'
-                                  ' • ${item.text}'
-                            : '${_partLabel(item.part)}'
-                                  '${unitTitle == null ? '' : ' • $unitTitle'}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const Icon(Icons.add_circle_outline),
-                      onTap: () => onPick(
-                        BankSelection(text: item.text, title: item.title),
-                      ),
-                    );
-                  },
-                ),
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _compositionTile(item),
+          ],
         );
       case _BankSource.unitQuestions:
         final entries = ExamBankPicker.filterUnitQuestions(
@@ -1696,46 +1607,132 @@ class _BankResults extends StatelessWidget {
           kind: kind,
           query: query,
         );
-        return Expanded(
-          child: entries.isEmpty
-              ? const _BankEmptyState()
-              : ListView.builder(
-                  controller: controller,
-                  itemCount: entries.length,
-                  itemBuilder: (BuildContext context, int i) {
-                    final entry = entries[i];
-                    final q = entry.question;
-                    return ListTile(
-                      key: ValueKey<String>('bank-item-${q.id}'),
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        q.prompt,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${entry.unit.displayTitle} • '
-                        '${ExamBankPicker.questionKindLabel(q.kind)}',
-                      ),
-                      trailing: const Icon(Icons.add_circle_outline),
-                      onTap: () => onPick(
-                        BankSelection(
-                          text: ExamBankPicker.unitQuestionAsExamText(q),
-                          prompt: q.prompt,
-                          items: q.kind == QuestionKind.choice
-                              ? q.options
-                              : const <String>[],
-                          layout: q.kind == QuestionKind.choice
-                              ? ExamItemLayout.inline
-                              : ExamItemLayout.vertical,
-                          title: entry.unit.displayTitle,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+        return _tiles(
+          entries.isEmpty,
+          <Widget>[
+            for (final entry in entries) _unitQuestionTile(entry),
+          ],
         );
     }
+  }
+
+  /// Empty state, or the tiles as one inline block of the sheet's column.
+  Widget _tiles(bool empty, List<Widget> tiles) {
+    if (empty) {
+      return const _BankEmptyState();
+    }
+    return Column(children: tiles);
+  }
+
+  Widget _grammarTile(GrammarBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: UnderlineRichText(item.text),
+      subtitle: Text(
+        '${_partLabel(item.part)} • '
+        '${ExamBankPicker.grammarStyleLabel(item.style)}'
+        '${unitTitle == null ? '' : ' • $unitTitle'}',
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: item.text,
+          prompt: item.text,
+          degree: item.defaultDegree,
+          title: item.promptGroup,
+        ),
+      ),
+    );
+  }
+
+  Widget _orthographyTile(OrthographyBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        item.title.isNotEmpty ? item.title : item.prompt,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${_partLabel(item.part)}'
+        '${unitTitle == null ? '' : ' • $unitTitle'}'
+        '${item.items.isEmpty ? '' : ' • ${item.items.join(' • ')}'}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: item.prompt,
+          prompt: item.prompt,
+          items: item.items,
+          degree: item.defaultDegree,
+          layout: item.itemLayout,
+          title: item.title,
+        ),
+      ),
+    );
+  }
+
+  Widget _compositionTile(CompositionBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    final hasTitle = item.title.trim().isNotEmpty;
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        hasTitle ? item.title : item.text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        hasTitle
+            ? '${_partLabel(item.part)}'
+                  '${unitTitle == null ? '' : ' • $unitTitle'}'
+                  ' • ${item.text}'
+            : '${_partLabel(item.part)}'
+                  '${unitTitle == null ? '' : ' • $unitTitle'}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(BankSelection(text: item.text, title: item.title)),
+    );
+  }
+
+  Widget _unitQuestionTile(UnitQuestionEntry entry) {
+    final q = entry.question;
+    return ListTile(
+      key: ValueKey<String>('bank-item-${q.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        q.prompt,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${entry.unit.displayTitle} • '
+        '${ExamBankPicker.questionKindLabel(q.kind)}',
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: ExamBankPicker.unitQuestionAsExamText(q),
+          prompt: q.prompt,
+          items: q.kind == QuestionKind.choice
+              ? q.options
+              : const <String>[],
+          layout: q.kind == QuestionKind.choice
+              ? ExamItemLayout.inline
+              : ExamItemLayout.vertical,
+          title: entry.unit.displayTitle,
+        ),
+      ),
+    );
   }
 }
 
@@ -1958,13 +1955,8 @@ class _FullscreenPreviewState extends State<_FullscreenPreview> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('معاينة ورقة A4'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'إغلاق',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-          ),
-        ],
+        // No explicit close action: the fullscreenDialog route implies the
+        // platform-standard CloseButton (tooltip «إغلاق») in the AppBar.
       ),
       body: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints c) {

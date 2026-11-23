@@ -602,32 +602,43 @@ class GrammarBankItem {
   factory GrammarBankItem.fromJson(Map<String, dynamic> json) {
     final category =
         (json['category'] as String?) ?? (json['promptGroup'] as String?) ?? '';
-    final explicitStyle = json['style'] as String?;
-    final String style;
-    if (explicitStyle != null && explicitStyle.isNotEmpty) {
-      style = explicitStyle;
-    } else if (category.contains('إعراب')) {
-      style = 'irab';
-    } else if (category.contains('الفرق')) {
-      style = 'difference';
-    } else if (category.contains('اختيارات')) {
-      style = 'mcq';
-    } else if (category.contains('تقويم')) {
-      style = 'taqwim';
-    } else if (category.contains('الخبر') || category.contains('كان')) {
-      style = 'extract';
-    } else {
-      style = 'apply';
-    }
     return GrammarBankItem(
       id: json['id'] as String,
       part: json['part'] as String,
       unitId: (json['unitId'] as String?) ?? '',
-      style: style,
+      style: GrammarBankItem.styleFromText(category) ?? 'apply',
       promptGroup: category,
       text: json['text'] as String,
       defaultDegree: (json['defaultDegree'] as int?) ?? 5,
     );
+  }
+
+  /// Single source of truth for style classification across the bank JSON,
+  /// the auto-generator and the per-branch bank picker. Matches both the
+  /// bank's `category` vocabulary (`أعرب ما تحته خط`, `معرب ومبني`,
+  /// `اختيارات`, `ما الفرق بين الجملتين`, `استخرج الخبر ونوعه`) and the
+  /// wording of handwritten branch prompts (`اعرب`, `اختر`, …).
+  /// Returns `null` when the text constrains no style (generic `apply`).
+  static String? styleFromText(String text) {
+    if (text.contains('إعراب') ||
+        text.contains('أعرب') ||
+        text.contains('اعرب') ||
+        text.contains('معرب')) {
+      return 'irab';
+    }
+    if (text.contains('اختر') || text.contains('اختيارات')) {
+      return 'mcq';
+    }
+    if (text.contains('الفرق')) {
+      return 'difference';
+    }
+    if (text.contains('الخبر') || text.contains('استخرج')) {
+      return 'extract';
+    }
+    if (text.contains('تقويم')) {
+      return 'taqwim';
+    }
+    return null;
   }
 
   final String id;

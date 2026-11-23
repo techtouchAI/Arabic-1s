@@ -122,25 +122,10 @@ abstract final class ExamBankPicker {
   /// prompt does not constrain the style (any bank item fits).
   ///
   /// Shared by the auto-generator and the picker so both agree on what
-  /// "أعرب ما تحته خط" or "اختر الإجابة الصحيحة" needs.
-  static String? inferGrammarStyle(String prompt) {
-    if (prompt.contains('اعرب') || prompt.contains('أعرب')) {
-      return 'irab';
-    }
-    if (prompt.contains('اختر')) {
-      return 'mcq';
-    }
-    if (prompt.contains('الفرق')) {
-      return 'difference';
-    }
-    if (prompt.contains('تقويم')) {
-      return 'taqwim';
-    }
-    if (prompt.contains('الخبر')) {
-      return 'extract';
-    }
-    return null;
-  }
+  /// "أعرب ما تحته خط" or "اختر الإجابة الصحيحة" needs. Delegates to
+  /// [GrammarBankItem.styleFromText] — the single classification source.
+  static String? inferGrammarStyle(String prompt) =>
+      GrammarBankItem.styleFromText(prompt);
 
   static bool _matchesQuery(String query, Iterable<String> haystacks) {
     final q = query.trim();
