@@ -777,27 +777,22 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: <Widget>[
-              const Text('حجم الخط (نقطة):'),
-              Expanded(
-                child: Slider(
-                  key: const ValueKey<String>('exam-body-font-size'),
-                  value: typo.bodySizePt.toDouble(),
-                  min: 8,
-                  max: 18,
-                  divisions: 10,
-                  label: '${typo.bodySizePt} pt',
-                  onChanged: (double v) => controller.updateTypography(
-                    typo.copyWith(
-                      bodySizePt: v.round(),
-                      headingSizePt: v.round() + 1,
-                    ),
-                  ),
-                ),
+          // Label above the slider (as in the spacing controls), so narrow
+          // phones and large text scales never overflow the row.
+          Text('حجم الخط: ${toArabicDigits(typo.bodySizePt)} نقطة'),
+          Slider(
+            key: const ValueKey<String>('exam-body-font-size'),
+            value: typo.bodySizePt.toDouble(),
+            min: 8,
+            max: 18,
+            divisions: 10,
+            label: '${typo.bodySizePt} pt',
+            onChanged: (double v) => controller.updateTypography(
+              typo.copyWith(
+                bodySizePt: v.round(),
+                headingSizePt: v.round() + 1,
               ),
-              Text('${toArabicDigits(typo.bodySizePt)} نقطة'),
-            ],
+            ),
           ),
           const Divider(height: 16),
           Text('تباعد الأسئلة والنقاط', style: Theme.of(context).textTheme.titleSmall),

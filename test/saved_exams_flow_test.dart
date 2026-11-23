@@ -13,6 +13,12 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// `tester.pageBack()` looks for the English "Back" tooltip; the app is Arabic.
+Future<void> _goBack(WidgetTester tester) async {
+  await tester.tap(find.byType(BackButton));
+  await _settle(tester);
+}
+
 Finder _field(String label) => find.byWidgetPredicate((widget) =>
     widget is TextField && widget.decoration?.labelText == label);
 
@@ -58,8 +64,7 @@ void main() {
         'عيّن أسماء الإشارة والمشار إليه');
 
     // Back in the saved section the paper is listed with its latest version.
-    await tester.pageBack();
-    await _settle(tester);
+    await _goBack(tester);
     expect(find.byKey(ValueKey<String>('saved-exam-${saved.id}')), findsOneWidget);
     expect(find.text(saved.displayTitle), findsOneWidget);
     expect(find.textContaining('النسخة ٢'), findsOneWidget);
@@ -114,8 +119,7 @@ void main() {
     expect(state.savedExams.papers, hasLength(1));
     expect(state.savedExams.byId(record.id)!.revision, 2);
     expect(state.savedExams.byId(record.id)!.paper.header.schoolName, 'متوسطة الفيحاء');
-    await tester.pageBack();
-    await _settle(tester);
+    await _goBack(tester);
 
     // Export straight from the list uses the saved version.
     await chooseAction('تصدير Word (.docx)');
