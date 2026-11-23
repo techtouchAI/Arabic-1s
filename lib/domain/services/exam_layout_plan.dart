@@ -1,6 +1,43 @@
 import '../../core/utils/arabic_text.dart';
 import '../models/exam_paper.dart';
 
+/// Header cells in logical right-to-left order, shared by Word and preview.
+class ExamHeaderLayout {
+  const ExamHeaderLayout._();
+
+  static const int fontSizePt = 14;
+  static const List<int> columnWidthsDxa = <int>[3316, 3834, 3316];
+
+  static List<List<String>> build(ArabicExamPaper paper) {
+    final h = paper.header;
+    final westernYear = toWesternDigits(h.academicYear.trim());
+    final year = paper.typography.useWesternDigits
+        ? westernYear
+        : toArabicDigits(westernYear);
+    return <List<String>>[
+      <String>[
+        h.administrationLine,
+        if (h.showAdditionalHeaderLines) ...<String>[
+          h.countryLine, h.ministryLine, h.directorateLine,
+        ],
+        h.schoolName,
+      ],
+      <String>[
+        h.examTitleLine,
+        if (year.isNotEmpty) 'للعام الدراسي $year',
+        h.roundLine,
+      ],
+      <String>[
+        h.subjectLine, h.gradeLine, h.timeAllowed,
+        if (h.showAdditionalHeaderLines && h.examDate.trim().isNotEmpty)
+          'التاريخ : ${h.examDate.trim()}',
+        if (h.showAdditionalHeaderLines) h.noteLine,
+      ],
+    ].map((lines) => lines.where((line) => line.trim().isNotEmpty)
+        .toList(growable: false)).toList(growable: false);
+  }
+}
+
 enum ExamParagraphKind { heading, prompt, item }
 
 /// Renderer-neutral, ordered exam content shared by Word and the live preview.

@@ -69,13 +69,32 @@ class ExamComposerController extends ChangeNotifier {
   /// teacher's school, directorate, and signature.
   void loadOfficialTemplate(OfficialExamTemplate template) {
     final currentH = _paper.header;
-    _paper = template
-        .toExamPaper(
-          schoolName: currentH.schoolName,
-          directorate: currentH.directorateLine,
-          teacherName: currentH.teacherName,
-        )
-        .copyWith(typography: _paper.typography);
+    final templatePaper = template.toExamPaper(
+      schoolName: currentH.schoolName,
+      directorate: currentH.directorateLine,
+      teacherName: currentH.teacherName,
+    );
+    _paper = templatePaper.copyWith(
+      header: templatePaper.header.copyWith(
+        administrationLine: currentH.administrationLine,
+        showAdditionalHeaderLines: currentH.showAdditionalHeaderLines,
+        studentNameLabel: currentH.studentNameLabel,
+        studentNumberLabel: currentH.studentNumberLabel,
+        includeStudentFields: currentH.includeStudentFields,
+        countryLine: currentH.countryLine,
+        ministryLine: currentH.ministryLine,
+        directorateLine: currentH.directorateLine,
+        schoolName: currentH.schoolName,
+        subjectLine: currentH.subjectLine,
+        gradeLine: currentH.gradeLine,
+        examDate: currentH.examDate,
+        noteLine: currentH.noteLine,
+        closingWish: currentH.closingWish,
+        teacherTitle: currentH.teacherTitle,
+        teacherName: currentH.teacherName,
+      ),
+      typography: _paper.typography,
+    );
     notifyListeners();
   }
 

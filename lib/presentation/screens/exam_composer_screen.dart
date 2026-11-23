@@ -5,6 +5,7 @@ import '../../core/theme/dimens.dart';
 import '../../core/utils/arabic_text.dart';
 import '../../core/widgets/app_page.dart';
 import '../../core/widgets/section_header.dart';
+import '../../data/local/docx/exam_docx_builder.dart';
 import '../../data/local/exam_document_exporter.dart';
 import '../../domain/models/exam_paper.dart';
 import '../../domain/services/exam_layout_plan.dart';
@@ -553,6 +554,30 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           _LabeledField(
+            label: 'الإدارة',
+            initialValue: h.administrationLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(administrationLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('إظهار بيانات إضافية في الترويسة'),
+            value: h.showAdditionalHeaderLines,
+            onChanged: (v) => controller.updateHeader(h.copyWith(showAdditionalHeaderLines: v)),
+          ),
+          _LabeledField(
+            label: 'الدولة',
+            initialValue: h.countryLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(countryLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'الوزارة',
+            initialValue: h.ministryLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(ministryLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
             label: 'اسم المدرسة',
             initialValue: h.schoolName,
             onChanged: (v) => controller.updateHeader(h.copyWith(schoolName: v)),
@@ -632,10 +657,57 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           _LabeledField(
+            label: 'المادة',
+            initialValue: h.subjectLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(subjectLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'الصف',
+            initialValue: h.gradeLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(gradeLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'تاريخ الامتحان',
+            initialValue: h.examDate,
+            onChanged: (v) => controller.updateHeader(h.copyWith(examDate: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'ملاحظة الترويسة',
+            initialValue: h.noteLine,
+            onChanged: (v) => controller.updateHeader(h.copyWith(noteLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'عبارة ختام الأسئلة',
+            initialValue: h.closingWish,
+            onChanged: (v) => controller.updateHeader(h.copyWith(closingWish: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'عنوان التوقيع',
+            initialValue: h.teacherTitle,
+            onChanged: (v) => controller.updateHeader(h.copyWith(teacherTitle: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
             label: 'اسم مدرس المادة (في التوقيع أسفل اليسار)',
             initialValue: h.teacherName,
             onChanged: (v) =>
                 controller.updateHeader(h.copyWith(teacherName: v)),
+          ),
+          _LabeledField(
+            label: 'عنوان اسم الطالب',
+            initialValue: h.studentNameLabel,
+            onChanged: (v) => controller.updateHeader(h.copyWith(studentNameLabel: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'عنوان الرقم الامتحاني',
+            initialValue: h.studentNumberLabel,
+            onChanged: (v) => controller.updateHeader(h.copyWith(studentNumberLabel: v)),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -668,10 +740,11 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
               const Text('حجم الخط (نقطة):'),
               Expanded(
                 child: Slider(
+                  key: const ValueKey<String>('exam-body-font-size'),
                   value: typo.bodySizePt.toDouble(),
-                  min: 11,
+                  min: 8,
                   max: 18,
-                  divisions: 7,
+                  divisions: 10,
                   label: '${typo.bodySizePt} pt',
                   onChanged: (double v) => controller.updateTypography(
                     typo.copyWith(
@@ -755,26 +828,24 @@ class _CompositionEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _LabeledField(
-                  label: 'صيغة سؤال الإنشاء',
-                  initialValue: comp.prompt,
-                  onChanged: (v) =>
-                      controller.updateComposition(comp.copyWith(prompt: v)),
-                ),
+          _LabeledField(
+            label: 'صيغة سؤال الإنشاء',
+            initialValue: comp.prompt,
+            multiline: true,
+            onChanged: (v) =>
+                controller.updateComposition(comp.copyWith(prompt: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: SizedBox(
+              width: 96,
+              child: _DegreeStepper(
+                degree: comp.degree,
+                onChanged: (d) =>
+                    controller.updateComposition(comp.copyWith(degree: d)),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              SizedBox(
-                width: 96,
-                child: _DegreeStepper(
-                  degree: comp.degree,
-                  onChanged: (d) =>
-                      controller.updateComposition(comp.copyWith(degree: d)),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           for (var i = 0; i < comp.topics.length; i++) ...<Widget>[
@@ -787,7 +858,7 @@ class _CompositionEditor extends StatelessWidget {
                     child: _LabeledField(
                       label: 'الموضوع (${toArabicDigits(i + 1)})',
                       initialValue: comp.topics[i],
-                      maxLines: 2,
+                      multiline: true,
                       onChanged: (String v) {
                         final list = List<String>.from(comp.topics);
                         list[i] = v;
@@ -930,27 +1001,11 @@ class _BranchEditor extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
-            if (branch.branch.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 8, top: 10),
-                child: Chip(label: Text('فرع ${branch.branch}')),
-              ),
-            Expanded(
-              child: _LabeledField(
-                label: 'منطوق السؤال / الفرع',
-                initialValue: branch.prompt,
-                onChanged: (String v) => controller.updateBranch(
-                  isGrammar: isGrammar,
-                  questionIndex: questionIndex,
-                  branchIndex: branchIndex,
-                  updated: branch.copyWith(prompt: v),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
+            if (branch.branch.isNotEmpty) Chip(label: Text('فرع ${branch.branch}')),
             SizedBox(
               width: 92,
               child: _DegreeStepper(
@@ -974,6 +1029,18 @@ class _BranchEditor extends StatelessWidget {
                 icon: const Icon(Icons.close, size: 19),
               ),
           ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        _LabeledField(
+          label: 'منطوق السؤال / الفرع',
+          initialValue: branch.prompt,
+          multiline: true,
+          onChanged: (String v) => controller.updateBranch(
+            isGrammar: isGrammar,
+            questionIndex: questionIndex,
+            branchIndex: branchIndex,
+            updated: branch.copyWith(prompt: v),
+          ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Wrap(
@@ -1005,6 +1072,7 @@ class _BranchEditor extends StatelessWidget {
                   child: _LabeledField(
                     label: 'نقطة (${toArabicDigits(ii + 1)})',
                     initialValue: branch.items[ii],
+                    multiline: true,
                     onChanged: (String v) {
                       final next = List<String>.from(branch.items);
                       next[ii] = v;
@@ -1115,114 +1183,102 @@ class _LivePaperPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const paperInk = Color(0xFF141414);
+    // A physical A4 canvas at 96 dpi, with the same half-inch margins as Word.
+    // Scroll horizontally on narrow screens rather than reflowing the document.
+    const pxPerPt = 96 / 72;
+    const pageWidth = ExamDocxBuilder.pageWidthDxa / 20 * pxPerPt;
+    const pageHeight = ExamDocxBuilder.pageHeightDxa / 20 * pxPerPt;
+    const margin = ExamDocxBuilder.marginDxa / 20 * pxPerPt;
+    final family = paper.typography.font.family;
     final baseStyle = TextStyle(
-      fontFamily: 'Amiri',
-      fontSize: paper.typography.bodySizePt.toDouble() + 1,
-      color: paperInk,
+      fontFamily: family,
+      fontSize: paper.typography.bodySizePt * pxPerPt,
+      color: const Color(0xFF141414),
       fontWeight: FontWeight.w700,
       height: paper.typography.spacing.lineHeight,
     );
-    final headerStyle = baseStyle.copyWith(fontSize: 13.5);
-    final sectionStyle = baseStyle.copyWith(
-      fontSize: paper.typography.headingSizePt.toDouble() + 1.5,
-      decoration: TextDecoration.underline,
+    final headerStyle = baseStyle.copyWith(
+      fontSize: ExamHeaderLayout.fontSizePt * pxPerPt,
+      fontWeight: FontWeight.normal,
+      height: 1,
     );
+    final sectionStyle = baseStyle.copyWith(
+      fontSize: paper.typography.headingSizePt * pxPerPt,
+    );
+    final cells = ExamHeaderLayout.build(paper);
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: <Widget>[
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 820),
+        const Text('معاينة تقريبية: قد تختلف الخطوط وتقسيم الصفحات في Word.'),
+        const SizedBox(height: AppSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
             child: Container(
-              padding: const EdgeInsets.all(24),
+              width: pageWidth,
+              constraints: const BoxConstraints(minHeight: pageHeight),
+              padding: const EdgeInsets.all(margin),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.black26),
                 boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    color: Color(0x1F000000),
-                    blurRadius: 14,
-                    offset: Offset(0, 6),
-                  ),
+                  BoxShadow(color: Color(0x1F000000), blurRadius: 14, offset: Offset(0, 6)),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  // 3-column header
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    runSpacing: 8,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      SizedBox(
-                        width: 220,
-                        child: Column(
-                          children: <Widget>[
-                            Text(paper.header.countryLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.ministryLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.directorateLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.schoolName, style: headerStyle, textAlign: TextAlign.center),
-                          ],
+                      for (var i = 0; i < cells.length; i++)
+                        Expanded(
+                          flex: ExamHeaderLayout.columnWidthsDxa[i],
+                          child: Padding(
+                            // Word table cells have a default horizontal inset of 108 twips.
+                            padding: const EdgeInsets.symmetric(horizontal: 108 / 20 * pxPerPt),
+                            child: Column(
+                              children: <Widget>[
+                                for (final line in cells[i])
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 24 / 20 * pxPerPt),
+                                    child: Text(line, style: headerStyle, textAlign: TextAlign.center),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 250,
-                        child: Column(
-                          children: <Widget>[
-                            Text(paper.header.examTitleLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.subjectLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.gradeLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text('للعام الدراسي ${paper.header.academicYear}', style: headerStyle, textAlign: TextAlign.center),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: 220,
-                        child: Column(
-                          children: <Widget>[
-                            Text(paper.header.roundLine, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.timeAllowed, style: headerStyle, textAlign: TextAlign.center),
-                            Text(paper.header.noteLine, style: headerStyle, textAlign: TextAlign.center),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                   if (paper.header.includeStudentFields) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      'اسم الطالب : ....................................    الرقم الامتحاني : ........................',
-                      style: headerStyle,
+                    Row(
+                      children: <Widget>[
+                        Expanded(child: Text(paper.header.studentNameLabel, style: headerStyle)),
+                        Expanded(child: Text(paper.header.studentNumberLabel, style: headerStyle)),
+                      ],
                     ),
                   ],
-                  const Divider(color: Colors.black, thickness: 1.5, height: 18),
-
+                  const Divider(color: Colors.black, thickness: 1.5, height: 12),
                   for (final paragraph in ExamLayoutPlan.build(paper))
                     _PreviewExamParagraph(
                       paragraph: paragraph,
                       paper: paper,
-                      style: paragraph.kind == ExamParagraphKind.heading
-                          ? sectionStyle.copyWith(decoration: TextDecoration.none)
-                          : baseStyle,
+                      style: paragraph.kind == ExamParagraphKind.heading ? sectionStyle : baseStyle,
                     ),
-
-                  const SizedBox(height: 16),
-                  Text(
-                    paper.header.closingWish,
-                    style: baseStyle,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
+                  if (paper.header.closingWish.trim().isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 140 / 20 * pxPerPt),
+                    Text(paper.header.closingWish.trim(), style: baseStyle, textAlign: TextAlign.center),
+                  ],
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Column(
                       children: <Widget>[
-                        Text(paper.header.teacherTitle, style: baseStyle),
-                        if (paper.header.teacherName.isNotEmpty)
-                          Text(paper.header.teacherName, style: baseStyle),
+                        if (paper.header.teacherTitle.trim().isNotEmpty)
+                          Text(paper.header.teacherTitle.trim(), style: baseStyle),
+                        if (paper.header.teacherName.trim().isNotEmpty)
+                          Text(paper.header.teacherName.trim(), style: baseStyle),
                       ],
                     ),
                   ),
@@ -1317,13 +1373,13 @@ class _LabeledField extends StatefulWidget {
     required this.label,
     required this.initialValue,
     required this.onChanged,
-    this.maxLines = 1,
+    this.multiline = false,
   });
 
   final String label;
   final String initialValue;
   final ValueChanged<String> onChanged;
-  final int maxLines;
+  final bool multiline;
 
   @override
   State<_LabeledField> createState() => _LabeledFieldState();
@@ -1357,7 +1413,9 @@ class _LabeledFieldState extends State<_LabeledField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _ctrl,
-      maxLines: widget.maxLines,
+      minLines: widget.multiline ? 2 : 1,
+      maxLines: widget.multiline ? null : 1,
+      keyboardType: widget.multiline ? TextInputType.multiline : TextInputType.text,
       decoration: InputDecoration(
         labelText: widget.label,
         isDense: true,

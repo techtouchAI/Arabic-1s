@@ -1,6 +1,7 @@
 import 'package:bayan/app.dart';
 import 'package:bayan/data/local/exam_document_exporter.dart';
 import 'package:bayan/domain/models/library.dart';
+import 'package:bayan/domain/models/exam_paper.dart';
 import 'package:bayan/presentation/screens/exam_composer_screen.dart';
 import 'package:bayan/presentation/screens/glossary_screen.dart';
 import 'package:bayan/presentation/screens/lesson_screen.dart';
@@ -164,10 +165,12 @@ void main() {
     // 5. ExamComposerScreen + Live A4 Preview + Export callback
     var exportedTotal = 0;
     double? exportedItemGap;
+    ArabicExamPaper? exportedPaper;
     nav.push(
       MaterialPageRoute<void>(
         builder: (_) => ExamComposerScreen(
           onExport: (paper) async {
+            exportedPaper = paper;
             exportedTotal = paper.totalDegree;
             exportedItemGap = paper.typography.spacing.itemGapPt;
             return const ExportOutcome(
@@ -178,6 +181,35 @@ void main() {
         ),
       ),
     );
+    await _settle(tester);
+
+    // Long prompts and points have a full-width, expanding editor on phones.
+    Finder field(String label) => find.byWidgetPredicate((widget) =>
+        widget is TextField && widget.decoration?.labelText == label);
+    final prompt = field('منطوق السؤال / الفرع').first;
+    await tester.ensureVisible(prompt);
+    await _settle(tester);
+    expect(tester.widget<TextField>(prompt).maxLines, isNull);
+    const editedPrompt = 'نص طويل قابل للتحرير\nالسطر الثاني من السؤال';
+    await tester.enterText(prompt, editedPrompt);
+    await _settle(tester);
+    final point = field('نقطة (١)').first;
+    await tester.ensureVisible(point);
+    await _settle(tester);
+    expect(tester.widget<TextField>(point).maxLines, isNull);
+    const editedPoint = 'نقطة محررة\nتتمة النقطة';
+    await tester.enterText(point, editedPoint);
+    await _settle(tester);
+    final country = field('الدولة');
+    await tester.ensureVisible(country);
+    await _settle(tester);
+    await tester.enterText(country, 'ترويسة محررة');
+    await _settle(tester);
+    final fontSlider = find.byKey(const ValueKey<String>('exam-body-font-size'));
+    await tester.ensureVisible(fontSlider);
+    await _settle(tester);
+    expect(tester.widget<Slider>(fontSlider).min, 8);
+    tester.widget<Slider>(fontSlider).onChanged!(8);
     await _settle(tester);
 
     // Spacing controls remain usable on the real composer and affect export.
@@ -198,5 +230,9 @@ void main() {
     await _settle(tester);
     expect(exportedTotal, 80);
     expect(exportedItemGap, 2.5);
+    expect(exportedPaper!.typography.bodySizePt, 8);
+    expect(exportedPaper!.header.countryLine, 'ترويسة محررة');
+    expect(exportedPaper!.grammar.questions.first.branches.first.prompt, editedPrompt);
+    expect(exportedPaper!.grammar.questions.first.branches.first.items.first, editedPoint);
   });
 }

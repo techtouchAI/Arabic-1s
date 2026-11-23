@@ -36,7 +36,9 @@ jobs:
           set +e
           python3 tools/verify_content.py 2>&1 | tee "$RUNNER_TEMP/content.txt"
           status=${PIPESTATUS[0]}
-          python3 tools/ci_report.py log "$RUNNER_TEMP/content.txt"
+          if [ "$status" -ne 0 ]; then
+            python3 tools/ci_report.py log "$RUNNER_TEMP/content.txt"
+          fi
           exit $status
 
   analyze:
@@ -116,7 +118,9 @@ jobs:
           set +e
           flutter build apk --release 2>&1 | tee "$RUNNER_TEMP/apk-build.log"
           status=${PIPESTATUS[0]}
-          python3 tools/ci_report.py log "$RUNNER_TEMP/apk-build.log"
+          if [ "$status" -ne 0 ]; then
+            python3 tools/ci_report.py log "$RUNNER_TEMP/apk-build.log"
+          fi
           exit $status
       - name: Verify the packaged APK
         run: |
@@ -228,7 +232,9 @@ jobs:
           $ErrorActionPreference = 'Continue'
           flutter build windows --release 2>&1 | Tee-Object -FilePath windows-build.log
           $status = $LASTEXITCODE
-          python tools/ci_report.py log windows-build.log
+          if ($status -ne 0) {
+            python tools/ci_report.py log windows-build.log
+          }
           exit $status
       - name: Package & verify the Windows distribution
         shell: pwsh
