@@ -10,6 +10,7 @@ import '../../data/local/exam_document_exporter.dart';
 import '../../domain/models/exam_paper.dart';
 import '../../domain/services/exam_layout_plan.dart';
 import '../state/app_state.dart';
+import '../state/exam_autosaver.dart';
 import '../state/exam_composer_state.dart';
 import '../widgets/text_scale_controls.dart';
 import '../widgets/underline_rich_text.dart';
@@ -17,9 +18,12 @@ import '../widgets/underline_rich_text.dart';
 typedef ExportExamCallback = Future<ExportOutcome> Function(ArabicExamPaper paper);
 
 class ExamComposerScreen extends StatefulWidget {
-  const ExamComposerScreen({super.key, this.onExport});
+  const ExamComposerScreen({super.key, this.onExport, this.savedExamId});
 
   final ExportExamCallback? onExport;
+
+  /// Reopens this paper from «أسئلتي المحفوظة»; edits update the same record.
+  final String? savedExamId;
 
   @override
   State<ExamComposerScreen> createState() => _ExamComposerScreenState();
@@ -27,6 +31,7 @@ class ExamComposerScreen extends StatefulWidget {
 
 class _ExamComposerScreenState extends State<ExamComposerScreen> {
   ExamComposerController? _controller;
+  ExamAutosaver? _autosaver;
   int _tabIndex = 0; // 0 = التحرير والتخصيص, 1 = معاينة الورقة الرسمية
   bool _exporting = false;
 
@@ -35,16 +40,26 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
     super.didChangeDependencies();
     if (_controller == null) {
       final state = AppScope.of(context);
-      _controller = ExamComposerController(
+      final savedId = widget.savedExamId;
+      final saved = savedId == null ? null : state.savedExams.byId(savedId);
+      final controller = ExamComposerController(
         examBank: state.examBank,
         teacherProfile: state.teacherProfile,
         activePart: state.activePart,
+        initialPaper: saved?.paper,
+      );
+      _controller = controller;
+      _autosaver = ExamAutosaver(
+        controller: controller,
+        library: state.savedExams,
+        savedId: saved?.id,
       );
     }
   }
 
   @override
   void dispose() {
+    _autosaver?.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -55,6 +70,8 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
       return;
     }
     setState(() => _exporting = true);
+    // Every exported paper is also kept in «أسئلتي المحفوظة».
+    _autosaver?.saveNow();
     try {
       final exporter = widget.onExport ?? const ExamDocumentExporter().exportDocx;
       final outcome = await exporter(ctrl.paper);
@@ -100,7 +117,10 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('مولّد أسئلة الامتحان الرسمي (Word)'),
-            actions: const <Widget>[TextScaleControls()],
+            actions: <Widget>[
+              _AutosaveIndicator(saved: _autosaver?.hasSavedCopy ?? false),
+              const TextScaleControls(),
+            ],
           ),
           body: Column(
             children: <Widget>[
@@ -210,6 +230,28 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
   }
 }
 
+class _AutosaveIndicator extends StatelessWidget {
+  const _AutosaveIndicator({required this.saved});
+
+  final bool saved;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: saved
+          ? 'تم حفظ آخر تعديل تلقائياً في «أسئلتي المحفوظة»'
+          : 'تُحفظ الورقة تلقائياً في «أسئلتي المحفوظة» عند أول تعديل',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        child: Icon(
+          saved ? Icons.cloud_done_outlined : Icons.cloud_outlined,
+          key: ValueKey<String>(saved ? 'autosave-saved' : 'autosave-idle'),
+        ),
+      ),
+    );
+  }
+}
+
 class _DegreeSummaryBadge extends StatelessWidget {
   const _DegreeSummaryBadge({required this.paper});
 
@@ -238,11 +280,13 @@ class _DegreeSummaryBadge extends StatelessWidget {
             color: color,
           ),
           const SizedBox(width: 6),
-          Text(
-            balanced
-                ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
-                : 'راجع مجموع درجات الأفرع',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+          Flexible(
+            child: Text(
+              balanced
+                  ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
+                  : 'راجع مجموع درجات الأفرع',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+            ),
           ),
         ],
       ),
@@ -735,27 +779,22 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: <Widget>[
-              const Text('حجم الخط (نقطة):'),
-              Expanded(
-                child: Slider(
-                  key: const ValueKey<String>('exam-body-font-size'),
-                  value: typo.bodySizePt.toDouble(),
-                  min: 8,
-                  max: 18,
-                  divisions: 10,
-                  label: '${typo.bodySizePt} pt',
-                  onChanged: (double v) => controller.updateTypography(
-                    typo.copyWith(
-                      bodySizePt: v.round(),
-                      headingSizePt: v.round() + 1,
-                    ),
-                  ),
-                ),
+          // Label above the slider (as in the spacing controls), so narrow
+          // phones and large text scales never overflow the row.
+          Text('حجم الخط: ${toArabicDigits(typo.bodySizePt)} نقطة'),
+          Slider(
+            key: const ValueKey<String>('exam-body-font-size'),
+            value: typo.bodySizePt.toDouble(),
+            min: 8,
+            max: 18,
+            divisions: 10,
+            label: '${typo.bodySizePt} pt',
+            onChanged: (double v) => controller.updateTypography(
+              typo.copyWith(
+                bodySizePt: v.round(),
+                headingSizePt: v.round() + 1,
               ),
-              Text('${toArabicDigits(typo.bodySizePt)} نقطة'),
-            ],
+            ),
           ),
           const Divider(height: 16),
           Text('تباعد الأسئلة والنقاط', style: Theme.of(context).textTheme.titleSmall),
@@ -1313,19 +1352,33 @@ class _PreviewExamParagraph extends StatelessWidget {
         top: paragraph.spaceBeforePt * pxPerPt,
         start: paragraph.indentPt * pxPerPt,
       ),
-      child: paragraph.degree == null
-          ? text
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(child: text),
-                const SizedBox(width: 8),
-                Text(
-                  '( ${formatDegreeLabel(paragraph.degree!, westernDigits: paper.typography.useWesternDigits)} )',
-                  style: style,
-                ),
-              ],
+      child: paragraph.degree == null ? text : _withDegreeBadge(text, pxPerPt),
+    );
+  }
+
+  /// Mirrors the Word paragraph: the prompt wraps inside the start column and
+  /// the badge ends flush with the left margin, on the prompt's (last) line.
+  Widget _withDegreeBadge(Widget text, double pxPerPt) {
+    final badge = ExamDegreeBadge.text(
+      paragraph.degree!,
+      westernDigits: paper.typography.useWesternDigits,
+    );
+    final fontSizePt = (style.fontSize ?? 14 * pxPerPt) / pxPerPt;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: <Widget>[
+        Expanded(child: text),
+        SizedBox(
+          width: ExamDegreeBadge.columnWidthPt(badge, fontSizePt) * pxPerPt,
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(badge, style: style, maxLines: 1),
             ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -234,5 +234,11 @@ void main() {
     expect(exportedPaper!.header.countryLine, 'ترويسة محررة');
     expect(exportedPaper!.grammar.questions.first.branches.first.prompt, editedPrompt);
     expect(exportedPaper!.grammar.questions.first.branches.first.items.first, editedPoint);
+
+    // Every edit was autosaved into a single record of «أسئلتي المحفوظة».
+    expect(state.savedExams.papers, hasLength(1));
+    final saved = state.savedExams.papers.single;
+    expect(identical(saved.paper, exportedPaper), isTrue);
+    expect(saved.revision, greaterThan(1));
   });
 }

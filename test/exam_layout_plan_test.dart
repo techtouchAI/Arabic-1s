@@ -79,7 +79,9 @@ void main() {
           expect(xmlSpacing.getAttribute('w:line'), '${(spacing.lineHeight * 240).round()}');
           expect(xmlSpacing.getAttribute('w:lineRule'), 'auto');
           expect(actual.findAllElements('w:keepNext').isNotEmpty, source.keepWithNext);
-          expect(actual.findAllElements('w:jc').single.getAttribute('w:val'), 'right');
+          // Start alignment is the bidi default; `w:jc="right"` would mean
+          // *end* (flush left) in Word.
+          expect(actual.findAllElements('w:jc'), isEmpty);
           if (source.degree != null) {
             expect(paragraphText(actual), endsWith('( ${formatDegreeLabel(source.degree!, westernDigits: true)} )'));
           }

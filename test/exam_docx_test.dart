@@ -74,11 +74,13 @@ void main() {
       expect(docXml.findAllElements('w:bidiVisual'), isNotEmpty);
       expect(docXml.findAllElements('w:rtlGutter'), isNotEmpty);
 
-      // Verify flush-left tab stops at printableWidth = 10466 dxa
-      final leftTabs = docXml
+      // Degree badges end at the left margin: an *end* tab (logical `right`
+      // in a bidi paragraph) at printableWidth = 10466 dxa.
+      final badgeTabs = docXml
           .findAllElements('w:tab')
           .where((el) => el.getAttribute('w:pos') == '10466');
-      expect(leftTabs, isNotEmpty);
+      expect(badgeTabs, isNotEmpty);
+      expect(badgeTabs.every((el) => el.getAttribute('w:val') == 'right'), isTrue);
 
       // Verify underlined words emit <w:u w:val="single"/> and zero stray '_'
       final uRuns = docXml

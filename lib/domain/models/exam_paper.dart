@@ -63,6 +63,39 @@ class ExamHeader {
     this.teacherName = '',
   });
 
+  /// Restores a header saved by [toJson]; missing keys keep their defaults so
+  /// papers saved by older versions still open.
+  factory ExamHeader.fromJson(Map<String, dynamic> json) {
+    const d = ExamHeader();
+    String text(String key, String fallback) =>
+        (json[key] as String?) ?? fallback;
+    bool flag(String key, bool fallback) => (json[key] as bool?) ?? fallback;
+    return ExamHeader(
+      administrationLine: text('administrationLine', d.administrationLine),
+      showAdditionalHeaderLines:
+          flag('showAdditionalHeaderLines', d.showAdditionalHeaderLines),
+      studentNameLabel: text('studentNameLabel', d.studentNameLabel),
+      studentNumberLabel: text('studentNumberLabel', d.studentNumberLabel),
+      countryLine: text('countryLine', d.countryLine),
+      ministryLine: text('ministryLine', d.ministryLine),
+      directorateLine: text('directorateLine', d.directorateLine),
+      schoolName: text('schoolName', d.schoolName),
+      examTitleLine: text('examTitleLine', d.examTitleLine),
+      subjectLine: text('subjectLine', d.subjectLine),
+      gradeLine: text('gradeLine', d.gradeLine),
+      academicYear: text('academicYear', d.academicYear),
+      roundLine: text('roundLine', d.roundLine),
+      timeAllowed: text('timeAllowed', d.timeAllowed),
+      examDate: text('examDate', d.examDate),
+      noteLine: text('noteLine', d.noteLine),
+      includeStudentFields:
+          flag('includeStudentFields', d.includeStudentFields),
+      closingWish: text('closingWish', d.closingWish),
+      teacherTitle: text('teacherTitle', d.teacherTitle),
+      teacherName: text('teacherName', d.teacherName),
+    );
+  }
+
   final String administrationLine;
   final bool showAdditionalHeaderLines;
   final String studentNameLabel;
@@ -128,6 +161,29 @@ class ExamHeader {
         teacherTitle: teacherTitle ?? this.teacherTitle,
         teacherName: teacherName ?? this.teacherName,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'administrationLine': administrationLine,
+        'showAdditionalHeaderLines': showAdditionalHeaderLines,
+        'studentNameLabel': studentNameLabel,
+        'studentNumberLabel': studentNumberLabel,
+        'countryLine': countryLine,
+        'ministryLine': ministryLine,
+        'directorateLine': directorateLine,
+        'schoolName': schoolName,
+        'examTitleLine': examTitleLine,
+        'subjectLine': subjectLine,
+        'gradeLine': gradeLine,
+        'academicYear': academicYear,
+        'roundLine': roundLine,
+        'timeAllowed': timeAllowed,
+        'examDate': examDate,
+        'noteLine': noteLine,
+        'includeStudentFields': includeStudentFields,
+        'closingWish': closingWish,
+        'teacherTitle': teacherTitle,
+        'teacherName': teacherName,
+      };
 }
 
 class ExamCompositionSection {
@@ -161,6 +217,12 @@ class ExamCompositionSection {
         prompt: prompt ?? this.prompt,
         topics: topics ?? this.topics,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'degree': degree,
+        'prompt': prompt,
+        'topics': List<String>.of(topics),
+      };
 }
 
 class ExamBranch {
@@ -209,6 +271,14 @@ class ExamBranch {
         items: items ?? this.items,
         itemLayout: itemLayout ?? this.itemLayout,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'branch': branch,
+        'prompt': prompt,
+        'degree': degree,
+        'items': List<String>.of(items),
+        'itemLayout': itemLayout.id,
+      };
 }
 
 class ExamQuestionBlock {
@@ -256,6 +326,11 @@ class ExamQuestionBlock {
         number: number ?? this.number,
         branches: branches ?? this.branches,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'number': number,
+        'branches': branches.map((b) => b.toJson()).toList(growable: false),
+      };
 }
 
 class ExamQuestionSection {
@@ -296,6 +371,11 @@ class ExamQuestionSection {
         degree: degree ?? this.degree,
         questions: questions ?? this.questions,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'degree': degree,
+        'questions': questions.map((q) => q.toJson()).toList(growable: false),
+      };
 }
 
 /// Physical spacing in points; Word uses twentieths of a point (dxa).
@@ -310,6 +390,20 @@ class ExamSpacing {
         assert(itemGapPt >= 0 && itemGapPt <= 12),
         assert(branchGapPt >= 0 && branchGapPt <= 18),
         assert(questionGapPt >= 0 && questionGapPt <= 24);
+
+  /// Values are clamped into the editor's ranges, so a damaged record can
+  /// never violate the constructor's assertions or the sliders' bounds.
+  factory ExamSpacing.fromJson(Map<String, dynamic> json) {
+    const d = ExamSpacing();
+    double read(String key, double fallback, double min, double max) =>
+        ((json[key] as num?)?.toDouble() ?? fallback).clamp(min, max);
+    return ExamSpacing(
+      lineHeight: read('lineHeight', d.lineHeight, 1, 2),
+      itemGapPt: read('itemGapPt', d.itemGapPt, 0, 12),
+      branchGapPt: read('branchGapPt', d.branchGapPt, 0, 18),
+      questionGapPt: read('questionGapPt', d.questionGapPt, 0, 24),
+    );
+  }
 
   final double lineHeight;
   final double itemGapPt;
@@ -327,6 +421,13 @@ class ExamSpacing {
     branchGapPt: branchGapPt ?? this.branchGapPt,
     questionGapPt: questionGapPt ?? this.questionGapPt,
   );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'lineHeight': lineHeight,
+        'itemGapPt': itemGapPt,
+        'branchGapPt': branchGapPt,
+        'questionGapPt': questionGapPt,
+      };
 }
 
 class ExamTypography {
@@ -337,6 +438,27 @@ class ExamTypography {
     this.useWesternDigits = true,
     this.spacing = const ExamSpacing(),
   });
+
+  /// Body sizes outside the editor range (8–18 pt) are clamped into it.
+  factory ExamTypography.fromJson(Map<String, dynamic> json) {
+    const d = ExamTypography();
+    final fontName = json['font'] as String?;
+    final body = ((json['bodySizePt'] as int?) ?? d.bodySizePt).clamp(8, 18);
+    final heading =
+        ((json['headingSizePt'] as int?) ?? body + 1).clamp(8, 24);
+    return ExamTypography(
+      font: ExamFontChoice.values.firstWhere(
+        (f) => f.name == fontName,
+        orElse: () => d.font,
+      ),
+      bodySizePt: body,
+      headingSizePt: heading,
+      useWesternDigits: (json['useWesternDigits'] as bool?) ?? d.useWesternDigits,
+      spacing: json['spacing'] is Map<String, dynamic>
+          ? ExamSpacing.fromJson(json['spacing'] as Map<String, dynamic>)
+          : d.spacing,
+    );
+  }
 
   final ExamFontChoice font;
   final int bodySizePt;
@@ -358,6 +480,14 @@ class ExamTypography {
         useWesternDigits: useWesternDigits ?? this.useWesternDigits,
         spacing: spacing ?? this.spacing,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'font': font.name,
+        'bodySizePt': bodySizePt,
+        'headingSizePt': headingSizePt,
+        'useWesternDigits': useWesternDigits,
+        'spacing': spacing.toJson(),
+      };
 }
 
 class ArabicExamPaper {
@@ -368,6 +498,25 @@ class ArabicExamPaper {
     required this.orthography,
     this.typography = const ExamTypography(),
   });
+
+  factory ArabicExamPaper.fromJson(Map<String, dynamic> json) =>
+      ArabicExamPaper(
+        header: ExamHeader.fromJson(json['header'] as Map<String, dynamic>),
+        composition: ExamCompositionSection.fromJson(
+          json['composition'] as Map<String, dynamic>,
+        ),
+        grammar: ExamQuestionSection.fromJson(
+          json['grammar'] as Map<String, dynamic>,
+        ),
+        orthography: ExamQuestionSection.fromJson(
+          json['orthography'] as Map<String, dynamic>,
+        ),
+        typography: json['typography'] is Map<String, dynamic>
+            ? ExamTypography.fromJson(
+                json['typography'] as Map<String, dynamic>,
+              )
+            : const ExamTypography(),
+      );
 
   final ExamHeader header;
   final ExamCompositionSection composition;
@@ -395,6 +544,14 @@ class ArabicExamPaper {
         orthography: orthography ?? this.orthography,
         typography: typography ?? this.typography,
       );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'header': header.toJson(),
+        'composition': composition.toJson(),
+        'grammar': grammar.toJson(),
+        'orthography': orthography.toJson(),
+        'typography': typography.toJson(),
+      };
 }
 
 // ---------------------------------------------------------------------------
