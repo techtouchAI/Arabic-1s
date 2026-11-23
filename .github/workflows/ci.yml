@@ -180,10 +180,34 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $ProgressPreference = 'SilentlyContinue'
           $version = $env:FLUTTER_VERSION
-          $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$version-stable.zip"
+          $manifestUrl = 'https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json'
+          $archivePath = "stable/windows/flutter_windows_$version-stable.zip"
+          $listed = $false
+          try {
+            $manifest = Invoke-RestMethod -Uri $manifestUrl -UseBasicParsing
+            $release = $manifest.releases |
+              Where-Object { $_.version -eq $version -and $_.channel -eq 'stable' } |
+              Select-Object -First 1
+            if ($release) {
+              $archivePath = $release.archive
+              $listed = $true
+            }
+          } catch {}
           $archive = Join-Path $env:RUNNER_TEMP 'flutter.zip'
-          curl.exe -fL --retry 3 --retry-delay 5 --retry-all-errors -o $archive $url
-          Expand-Archive -Path $archive -DestinationPath 'C:\' -Force
+          $downloaded = $false
+          if ($listed) {
+            $url = "https://storage.googleapis.com/flutter_infra_release/releases/$archivePath"
+            curl.exe -fL --retry 3 --retry-delay 5 --retry-all-errors -o $archive $url
+            if (Test-Path $archive) {
+              $downloaded = (Get-Item $archive).Length -gt 100MB
+            }
+          }
+          if (-not $downloaded) {
+            if (Test-Path 'C:\flutter') { Remove-Item -Recurse -Force 'C:\flutter' }
+            git clone --depth 1 --branch $version https://github.com/flutter/flutter.git C:\flutter
+          } else {
+            Expand-Archive -Path $archive -DestinationPath 'C:\' -Force
+          }
           if (-not (Test-Path 'C:\flutter\bin\flutter.bat')) { throw 'Flutter SDK layout unexpected' }
       - name: Put Flutter on the PATH
         shell: pwsh
