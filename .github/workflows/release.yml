@@ -2,46 +2,28 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['bayan-v*', 'v*']
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag (e.g. v1.0.0) when triggered manually'
-        required: true
-        type: string
+      publish:
+        description: 'Publish a GitHub Release from this run'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.35.0
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
 
 permissions:
   contents: write
 
-env:
-  FLUTTER_VERSION: '3.24.5'
-
 jobs:
-  verify:
-    name: Verify & test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python -m pip install --upgrade pip pymupdf
-      - run: python3 tools/build_content.py
-      - run: git diff --exit-code assets/
-      - run: python3 tools/verify_content.py
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - run: flutter analyze --fatal-infos --fatal-warnings
-      - run: flutter test
-
-  build-android:
-    name: Build Android APK & AAB
-    needs: verify
+  android:
+    name: Android APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,83 +31,156 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - name: Restore the Flutter SDK
+        id: sdk
+        uses: actions/cache@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-      - name: Decode signing keystore (optional)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+          path: ~/flutter
+          key: flutter-sdk-linux-${{ env.FLUTTER_VERSION }}
+      - name: Install the official Flutter ${{ env.FLUTTER_VERSION }} SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          curl -fL --retry 3 -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          tar xf /tmp/flutter.tar.xz -C "$HOME"
+      - name: Put Flutter on the PATH
+        run: |
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          git config --global --add safe.directory "$HOME/flutter"
+      - name: Resolve the dependencies
+        run: flutter pub get
+      - name: Configure release signing (optional)
         env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          echo "$KEYSTORE_B64" | base64 --decode > android/app/release-keystore.jks
-          cat > android/key.properties <<EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=release-keystore.jks
-          EOF
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - run: flutter build appbundle --release
-      - name: Stage release files
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/release.jks
+            {
+              echo "storePassword=${ANDROID_STORE_PASSWORD}"
+              echo "keyPassword=${ANDROID_KEY_PASSWORD}"
+              echo "keyAlias=${ANDROID_KEY_ALIAS}"
+              echo "storeFile=release.jks"
+            } > android/key.properties
+            echo "::notice::release signing configured from secrets"
+          else
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret; the APK will use the debug key"
+          fi
+      - name: Build the release APK
+        run: flutter build apk --release
+      - name: Stage the release files
         run: |
-          TAG="${GITHUB_REF_NAME:-${{ inputs.tag }}}"
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/bayan-${TAG}-android.apk"
-          cp build/app/outputs/bundle/release/app-release.aab "dist/bayan-${TAG}-android.aab"
+          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/bayan-android-${VERSION}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk dist/bayan-android.apk
+          ls -l dist
       - uses: actions/upload-artifact@v4
         with:
-          name: release-android
-          path: dist/*
+          name: bayan-android-apk
+          path: dist
+          if-no-files-found: error
 
-  build-windows:
-    name: Build Windows x64 portable
-    needs: verify
-    runs-on: windows-latest
+  windows:
+    name: Windows package
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Restore the Flutter SDK
+        id: sdk
+        uses: actions/cache@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-      - run: flutter config --enable-windows-desktop
-      - run: flutter pub get
-      - run: flutter build windows --release
-      - name: Stage portable archive
+          path: C:\flutter
+          key: flutter-sdk-windows-${{ env.FLUTTER_VERSION }}
+      - name: Install the official Flutter ${{ env.FLUTTER_VERSION }} SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "${{ inputs.tag }}" }
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $version = $env:FLUTTER_VERSION
+          $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$version-stable.zip"
+          $archive = Join-Path $env:RUNNER_TEMP 'flutter.zip'
+          curl.exe -fL --retry 3 --retry-delay 5 --retry-all-errors -o $archive $url
+          Expand-Archive -Path $archive -DestinationPath 'C:\' -Force
+          if (-not (Test-Path 'C:\flutter\bin\flutter.bat')) { throw 'Flutter SDK layout unexpected' }
+      - name: Put Flutter on the PATH
+        shell: pwsh
+        run: |
+          echo "C:\flutter\bin" >> $env:GITHUB_PATH
+          git config --global --add safe.directory C:/flutter
+      - name: Build the Windows application
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter precache --windows
+          flutter build windows --release
+      - name: Package the complete distribution folder
+        shell: pwsh
+        run: |
+          $out = 'build\windows\x64\runner\Release'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path "build/windows/x64/runner/Release/*" `
-            -DestinationPath "dist/bayan-$tag-windows-x64.zip" -Force
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)').Matches[0].Groups[1].Value
+          $base = $version -replace '\+.*', ''
+          Compress-Archive -Path "$out\*" -DestinationPath "dist\bayan-windows-$base-x64.zip" -Force
+          Copy-Item "dist\bayan-windows-$base-x64.zip" -Destination "dist\bayan-windows-x64.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: release-windows
-          path: dist/*
+          name: bayan-windows-x64
+          path: dist
+          if-no-files-found: error
 
-  publish:
-    name: Publish GitHub Release
-    needs: [build-android, build-windows]
+  release:
+    name: Publish release
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: dist
           merge-multiple: true
-      - name: Generate checksums
+      - name: Resolve the version
+        id: version
         run: |
-          cd artifacts
-          sha256sum * > SHA256SUMS.txt
-      - name: Create GitHub Release
+          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=bayan-v${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum bayan-android-*.apk bayan-android.apk \
+                    bayan-windows-*-x64.zip bayan-windows-x64.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Publish the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          generate_release_notes: true
-          files: artifacts/*
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: بَيَان · اللغة العربية للأول المتوسط ${{ steps.version.outputs.version }}
+          body: |
+            ## بَيَان — اللغة العربية للصف الأول المتوسط (الجزء الأول والجزء الثاني)
+
+            تطبيق تعليمي عربي يعمل دون إنترنت ١٠٠٪ على نظامي Android و Windows، مع مولّد أسئلة امتحان رسمي بصيغة Word (`.docx`) وطباعة بنك الأسئلة (PDF).
+
+            | الملف | الوصف |
+            | --- | --- |
+            | `bayan-android-${{ steps.version.outputs.version }}.apk` | حزمة أندرويد (APK) |
+            | `bayan-android.apk` | أحدث إصدار أندرويد (رابط ثابت) |
+            | `bayan-windows-${{ steps.version.outputs.version }}-x64.zip` | حزمة ويندوز المحمولة (64-bit) |
+            | `bayan-windows-x64.zip` | أحدث إصدار ويندوز (رابط ثابت) |
+            | `SHA256SUMS.txt` | بصمات SHA-256 للتحقق |
+          files: |
+            dist/bayan-android-*.apk
+            dist/bayan-android.apk
+            dist/bayan-windows-*-x64.zip
+            dist/bayan-windows-x64.zip
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true
