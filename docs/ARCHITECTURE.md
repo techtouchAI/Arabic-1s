@@ -15,7 +15,7 @@
 3. **`lib/data/`**
    - `ContentLoader`: قراءة ملفات المحتوى الحتمية من `assets/content/*.json`.
    - `ProgressStore`: حفظ اختيار الجزء الدراسي، بيانات المدرس والمدرسة، الوضع الليلي/النهاري، حجم الخط، المحفوظات، وسجل الاختبارات محلياً عبر `SharedPreferences` (مع `MemoryProgressStore` للاختبارات السريعة).
-   - `ExamDocxBuilder` و`StoredZipWriter`: توليد ملفات OOXML `.docx` حتمية ومطابقة ١٠٠٪ لهيكل أوراق الامتحان العراقية الرسمية دون الحاجة لأي خادم خارجي.
+   - `ExamDocxBuilder` و`StoredZipWriter`: توليد ملفات OOXML `.docx` حتمية وفق `ExamLayoutPlan` المشتركة مع المعاينة وقوالب مستوردة من Word الأصلي دون الحاجة لأي خادم خارجي.
    - `QuestionPrinter`: توليد صفحات PDF A4 متعددة الصفحات باتجاه RTL وخطوط TTF مضمّنة.
 
 4. **`lib/presentation/`**

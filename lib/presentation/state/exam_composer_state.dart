@@ -31,7 +31,7 @@ class ExamComposerController extends ChangeNotifier {
       // Load the 2025 First-Round official template by default, personalized
       // with the teacher's saved school, directorate, and name.
       final preferred = examBank.officialTemplates.firstWhere(
-        (t) => t.id == 'final-r1-2025',
+        (t) => t.id == 'tpl-final-r1',
         orElse: () => examBank.officialTemplates.first,
       );
       final base = preferred.toExamPaper(
@@ -138,6 +138,37 @@ class ExamComposerController extends ChangeNotifier {
       return pickRandom(src, count).map((g) => g.text).toList(growable: false);
     }
 
+    // Use the source papers as structural blueprints, rather than inventing a
+    // second order/mark distribution that diverges from the Word references.
+    final blueprints = examBank.officialTemplates.where((t) =>
+        t.part == (scope == 'part1' ? 'part1' : 'part2')).toList(growable: false);
+    if (blueprints.isNotEmpty) {
+      final blueprint = pickRandom(blueprints, 1).single;
+      ExamQuestionSection generateSection(bool grammar) {
+        final base = grammar ? blueprint.grammar : blueprint.orthography;
+        return base.copyWith(questions: <ExamQuestionBlock>[
+          for (var qi = 0; qi < base.questions.length; qi++)
+            base.questions[qi].copyWith(branches: <ExamBranch>[
+              for (var bi = 0; bi < base.questions[qi].branches.length; bi++)
+                _generateBlueprintBranch(
+                  base.questions[qi].branches[bi],
+                  blueprints.map((t) => grammar ? t.grammar : t.orthography),
+                  qi, bi,
+                  grammar ? effectiveG : const <GrammarBankItem>[],
+                ),
+            ]),
+        ]);
+      }
+      return ArabicExamPaper(
+        header: baseHeader,
+        composition: blueprint.composition.copyWith(topics: chosenComp),
+        grammar: generateSection(true),
+        orthography: generateSection(false),
+        typography: typography,
+      );
+    }
+
+    // Backwards-compatible fallback for custom banks without official sources.
     final grammarSection = ExamQuestionSection(
       degree: 35,
       questions: <ExamQuestionBlock>[
@@ -231,6 +262,47 @@ class ExamComposerController extends ChangeNotifier {
       ),
       typography: typography,
     );
+  }
+
+  ExamBranch _generateBlueprintBranch(
+    ExamBranch base,
+    Iterable<ExamQuestionSection> sources,
+    int questionIndex,
+    int branchIndex,
+    List<GrammarBankItem> bank,
+  ) {
+    final candidates = <ExamBranch>[];
+    for (final section in sources) {
+      if (questionIndex >= section.questions.length) continue;
+      final branches = section.questions[questionIndex].branches;
+      if (branchIndex >= branches.length) continue;
+      final branch = branches[branchIndex];
+      if (branch.degree == base.degree &&
+          branch.itemLayout == base.itemLayout &&
+          branch.items.length == base.items.length) {
+        candidates.add(branch);
+      }
+    }
+    final selected = candidates.isEmpty
+        ? base
+        : candidates[_rng.nextInt(candidates.length)];
+    final prompt = selected.prompt;
+    final style = prompt.contains('اعرب') || prompt.contains('أعرب')
+        ? 'irab'
+        : prompt.contains('اختر')
+            ? 'mcq'
+            : prompt.contains('الفرق')
+                ? 'difference'
+                : null;
+    // Never silently fill a parsing/MCQ slot with an unrelated question type.
+    final matching = bank.where((item) => item.style == style).toList()
+      ..shuffle(_rng);
+    return style != null && selected.items.isNotEmpty &&
+            matching.length >= selected.items.length
+        ? selected.copyWith(
+            items: matching.take(selected.items.length).map((e) => e.text).toList(),
+          )
+        : selected;
   }
 
   void updateHeader(ExamHeader header) {

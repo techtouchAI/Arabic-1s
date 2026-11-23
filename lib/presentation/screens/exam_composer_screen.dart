@@ -7,6 +7,7 @@ import '../../core/widgets/app_page.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/local/exam_document_exporter.dart';
 import '../../domain/models/exam_paper.dart';
+import '../../domain/services/exam_layout_plan.dart';
 import '../state/app_state.dart';
 import '../state/exam_composer_state.dart';
 import '../widgets/text_scale_controls.dart';
@@ -683,6 +684,51 @@ class _HeaderAndTypographyEditor extends StatelessWidget {
               Text('${toArabicDigits(typo.bodySizePt)} نقطة'),
             ],
           ),
+          const Divider(height: 16),
+          Text('تباعد الأسئلة والنقاط', style: Theme.of(context).textTheme.titleSmall),
+          _SpacingControl(
+            label: 'تباعد الأسطر',
+            value: typo.spacing.lineHeight,
+            min: 1, max: 2, divisions: 20,
+            unit: '×',
+            onChanged: (v) => controller.updateTypography(typo.copyWith(
+              spacing: typo.spacing.copyWith(lineHeight: v),
+            )),
+          ),
+          _SpacingControl(
+            label: 'المسافة بين النقاط',
+            value: typo.spacing.itemGapPt,
+            max: 12, divisions: 24,
+            onChanged: (v) => controller.updateTypography(typo.copyWith(
+              spacing: typo.spacing.copyWith(itemGapPt: v),
+            )),
+          ),
+          _SpacingControl(
+            label: 'المسافة بين الفروع',
+            value: typo.spacing.branchGapPt,
+            max: 18, divisions: 36,
+            onChanged: (v) => controller.updateTypography(typo.copyWith(
+              spacing: typo.spacing.copyWith(branchGapPt: v),
+            )),
+          ),
+          _SpacingControl(
+            label: 'المسافة بين الأسئلة',
+            value: typo.spacing.questionGapPt,
+            max: 24, divisions: 48,
+            onChanged: (v) => controller.updateTypography(typo.copyWith(
+              spacing: typo.spacing.copyWith(questionGapPt: v),
+            )),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              icon: const Icon(Icons.compress),
+              label: const Text('استعادة التباعد المضغوط'),
+              onPressed: () => controller.updateTypography(
+                typo.copyWith(spacing: const ExamSpacing()),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1061,7 +1107,7 @@ class _BranchEditor extends StatelessWidget {
   }
 }
 
-/// Live WYSIWYG A4 paper preview showing the exact Iraqi exam layout.
+/// Live preview sharing question order and spacing with the Word renderer.
 class _LivePaperPreview extends StatelessWidget {
   const _LivePaperPreview({required this.paper});
 
@@ -1075,20 +1121,13 @@ class _LivePaperPreview extends StatelessWidget {
       fontSize: paper.typography.bodySizePt.toDouble() + 1,
       color: paperInk,
       fontWeight: FontWeight.w700,
-      height: 1.55,
+      height: paper.typography.spacing.lineHeight,
     );
     final headerStyle = baseStyle.copyWith(fontSize: 13.5);
     final sectionStyle = baseStyle.copyWith(
       fontSize: paper.typography.headingSizePt.toDouble() + 1.5,
       decoration: TextDecoration.underline,
     );
-
-    String fmtNum(Object n) => paper.typography.useWesternDigits
-        ? toWesternDigits('$n')
-        : toArabicDigits(n);
-
-    String badge(int deg) =>
-        '( ${formatDegreeLabel(deg, westernDigits: paper.typography.useWesternDigits)} )';
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1161,45 +1200,14 @@ class _LivePaperPreview extends StatelessWidget {
                   ],
                   const Divider(color: Colors.black, thickness: 1.5, height: 18),
 
-                  // الإنشاء
-                  Text(
-                    'الانشاء : ${badge(paper.composition.degree)}',
-                    style: sectionStyle,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(paper.composition.prompt, style: baseStyle),
-                  for (var i = 0; i < paper.composition.topics.length; i++)
-                    Text(
-                      '${fmtNum(i + 1)}- ${paper.composition.topics[i]}',
-                      style: baseStyle,
+                  for (final paragraph in ExamLayoutPlan.build(paper))
+                    _PreviewExamParagraph(
+                      paragraph: paragraph,
+                      paper: paper,
+                      style: paragraph.kind == ExamParagraphKind.heading
+                          ? sectionStyle.copyWith(decoration: TextDecoration.none)
+                          : baseStyle,
                     ),
-
-                  const SizedBox(height: 10),
-                  // القواعد
-                  Text(
-                    'قواعد اللغة العربية : ${badge(paper.grammar.degree)}',
-                    style: sectionStyle,
-                    textAlign: TextAlign.center,
-                  ),
-                  _PreviewSectionBody(
-                    section: paper.grammar,
-                    paper: paper,
-                    baseStyle: baseStyle,
-                  ),
-
-                  const SizedBox(height: 10),
-                  // الإملاء
-                  Text(
-                    'الاملاء : ${badge(paper.orthography.degree)}',
-                    style: sectionStyle,
-                    textAlign: TextAlign.center,
-                  ),
-                  _PreviewSectionBody(
-                    section: paper.orthography,
-                    paper: paper,
-                    baseStyle: baseStyle,
-                  ),
 
                   const SizedBox(height: 16),
                   Text(
@@ -1228,77 +1236,80 @@ class _LivePaperPreview extends StatelessWidget {
   }
 }
 
-class _PreviewSectionBody extends StatelessWidget {
-  const _PreviewSectionBody({
-    required this.section,
+class _PreviewExamParagraph extends StatelessWidget {
+  const _PreviewExamParagraph({
+    required this.paragraph,
     required this.paper,
-    required this.baseStyle,
+    required this.style,
   });
 
-  final ExamQuestionSection section;
+  final ExamLayoutParagraph paragraph;
   final ArabicExamPaper paper;
-  final TextStyle baseStyle;
+  final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
-    String fmtNum(Object n) => paper.typography.useWesternDigits
-        ? toWesternDigits('$n')
-        : toArabicDigits(n);
-
-    String badge(int deg) =>
-        '( ${formatDegreeLabel(deg, westernDigits: paper.typography.useWesternDigits)} )';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (final q in section.questions)
-          for (var bi = 0; bi < q.branches.length; bi++) ...<Widget>[
-            const SizedBox(height: 6),
-            Row(
+    // Points to logical pixels at the preview's nominal 96 dpi.
+    const pxPerPt = 96 / 72;
+    final text = UnderlineRichText(paragraph.text, style: style);
+    return Padding(
+      padding: EdgeInsetsDirectional.only(
+        top: paragraph.spaceBeforePt * pxPerPt,
+        start: paragraph.indentPt * pxPerPt,
+      ),
+      child: paragraph.degree == null
+          ? text
+          : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Expanded(
-                  child: UnderlineRichText(
-                    '${bi == 0 ? (q.branches[bi].branch.isEmpty ? 'س${fmtNum(q.number)}/ ' : 'س${fmtNum(q.number)}/ ${q.branches[bi].branch}- ') : (q.branches[bi].branch.isEmpty ? '' : '${q.branches[bi].branch}- ')}${q.branches[bi].prompt}',
-                    style: baseStyle,
-                  ),
-                ),
+                Expanded(child: text),
                 const SizedBox(width: 8),
-                Text(badge(q.branches[bi].degree), style: baseStyle),
+                Text(
+                  '( ${formatDegreeLabel(paragraph.degree!, westernDigits: paper.typography.useWesternDigits)} )',
+                  style: style,
+                ),
               ],
             ),
-            if (q.branches[bi].itemLayout == ExamItemLayout.inline)
-              Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: UnderlineRichText(
-                  <String>[
-                    for (var ii = 0; ii < q.branches[bi].items.length; ii++)
-                      '${fmtNum(ii + 1)}- ${q.branches[bi].items[ii]}',
-                  ].join('    '),
-                  style: baseStyle,
-                ),
-              )
-            else if (q.branches[bi].itemLayout == ExamItemLayout.prose)
-              Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: UnderlineRichText(
-                  q.branches[bi].items.join(' '),
-                  style: baseStyle,
-                ),
-              )
-            else
-              for (var ii = 0; ii < q.branches[bi].items.length; ii++)
-                Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: UnderlineRichText(
-                    '${fmtNum(ii + 1)}- ${q.branches[bi].items[ii]}',
-                    style: baseStyle,
-                  ),
-                ),
-          ],
-      ],
     );
   }
+}
+
+class _SpacingControl extends StatelessWidget {
+  const _SpacingControl({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+    this.min = 0,
+    this.unit = 'نقطة',
+  });
+
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final String unit;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Text('$label: ${toArabicDigits(value.toStringAsFixed(2))} $unit'),
+      Slider(
+        key: ValueKey<String>(label),
+        value: value,
+        min: min,
+        max: max,
+        divisions: divisions,
+        label: '${value.toStringAsFixed(2)} $unit',
+        semanticFormatterCallback: (v) => '$label: $v $unit',
+        onChanged: onChanged,
+      ),
+    ],
+  );
 }
 
 class _LabeledField extends StatefulWidget {

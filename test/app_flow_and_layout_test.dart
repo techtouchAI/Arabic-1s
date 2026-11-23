@@ -163,11 +163,13 @@ void main() {
 
     // 5. ExamComposerScreen + Live A4 Preview + Export callback
     var exportedTotal = 0;
+    double? exportedItemGap;
     nav.push(
       MaterialPageRoute<void>(
         builder: (_) => ExamComposerScreen(
           onExport: (paper) async {
             exportedTotal = paper.totalDegree;
+            exportedItemGap = paper.typography.spacing.itemGapPt;
             return const ExportOutcome(
               kind: ExportOutcomeKind.savedToFile,
               filePath: '/tmp/exam.docx',
@@ -178,6 +180,14 @@ void main() {
     );
     await _settle(tester);
 
+    // Spacing controls remain usable on the real composer and affect export.
+    final gapSlider = find.byKey(const ValueKey<String>('المسافة بين النقاط'));
+    await tester.ensureVisible(gapSlider);
+    await _settle(tester);
+    tester.widget<Slider>(gapSlider).onChanged!(2.5);
+    await _settle(tester);
+    expect(tester.widget<Slider>(gapSlider).value, 2.5);
+
     // Switch to A4 preview tab
     await tester.tap(find.text('معاينة ورقة A4'));
     await _settle(tester);
@@ -187,5 +197,6 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('export-docx-button')));
     await _settle(tester);
     expect(exportedTotal, 80);
+    expect(exportedItemGap, 2.5);
   });
 }
