@@ -319,7 +319,10 @@ void main() {
       find.byKey(const ValueKey<String>('preview-fullscreen-viewer')),
       findsOneWidget,
     );
-    await tester.tap(find.byIcon(Icons.close));
+    // `byTooltip` uniquely targets the fullscreen AppBar close; a bare
+    // `find.byIcon(Icons.close)` is ambiguous because the composer page
+    // behind the route also renders one.
+    await tester.tap(find.byTooltip('إغلاق'));
     await _settle(tester);
     expect(
       find.byKey(const ValueKey<String>('preview-fullscreen-viewer')),
@@ -357,27 +360,40 @@ void main() {
     );
 
     // Grammar branches and orthography branches each own a bank button.
-    // (The editor is a lazy ListView, so scroll until they are built.)
+    // The editor is a lazy ListView nested among other scrollables (home
+    // route, multiline fields), so scrolling is driven explicitly on the
+    // editor's own Scrollable instead of `scrollUntilVisible`'s ambiguous
+    // default.
+    final editorScrollable = find.ancestor(
+      of: find.byKey(const ValueKey<String>('exam-body-font-size')),
+      matching: find.byType(Scrollable),
+    ).first;
     final grammarButton =
         find.byKey(const ValueKey<String>('branch-bank-grammar')).first;
-    await tester.scrollUntilVisible(grammarButton, 300);
-    await _settle(tester);
+    final orthoButton =
+        find.byKey(const ValueKey<String>('branch-bank-ortho')).first;
+    Future<void> reveal(Finder target) async {
+      for (var i = 0; i < 40 && target.evaluate().isEmpty; i++) {
+        await tester.drag(editorScrollable, const Offset(0, -400));
+        await tester.pumpAndSettle();
+      }
+      await tester.ensureVisible(target);
+      await _settle(tester);
+    }
+
+    await reveal(grammarButton);
     expect(
       find.byKey(const ValueKey<String>('branch-bank-grammar')),
       findsWidgets,
     );
-    final orthoButton =
-        find.byKey(const ValueKey<String>('branch-bank-ortho')).first;
-    await tester.scrollUntilVisible(orthoButton, 300);
-    await _settle(tester);
+    await reveal(orthoButton);
     expect(
       find.byKey(const ValueKey<String>('branch-bank-ortho')),
       findsWidgets,
     );
 
     // Open the grammar bank picker: searchable, filterable, free choice.
-    await tester.scrollUntilVisible(grammarButton, 300);
-    await _settle(tester);
+    await reveal(grammarButton);
     await tester.tap(grammarButton);
     await _settle(tester);
     expect(find.byKey(const ValueKey<String>('bank-search')), findsOneWidget);
@@ -390,10 +406,18 @@ void main() {
       'التنوين',
     );
     await _settle(tester);
-    expect(find.byType(ListTile), findsWidgets);
+    // Bank result tiles are keyed with the `bank-item-` prefix; plain
+    // ListTiles also exist on the home route behind the sheet.
+    Finder bankTiles() => find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is ListTile &&
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith('bank-item-'),
+        );
+    expect(bankTiles(), findsWidgets);
 
     // Pick the first result: the sheet closes and the branch gains a point.
-    await tester.tap(find.byType(ListTile).first);
+    await tester.tap(bankTiles().first);
     await _settle(tester);
     expect(find.byKey(const ValueKey<String>('bank-search')), findsNothing);
   });
