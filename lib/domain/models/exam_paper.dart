@@ -41,6 +41,10 @@ enum ExamItemLayout {
 
 class ExamHeader {
   const ExamHeader({
+    this.administrationLine = 'ادارة',
+    this.showAdditionalHeaderLines = false,
+    this.studentNameLabel = 'اسم الطالب :',
+    this.studentNumberLabel = 'الرقم الامتحاني :',
     this.countryLine = 'جمهورية العراق',
     this.ministryLine = 'وزارة التربية',
     this.directorateLine = 'المديرية العامة للتربية',
@@ -59,6 +63,10 @@ class ExamHeader {
     this.teacherName = '',
   });
 
+  final String administrationLine;
+  final bool showAdditionalHeaderLines;
+  final String studentNameLabel;
+  final String studentNumberLabel;
   final String countryLine;
   final String ministryLine;
   final String directorateLine;
@@ -77,6 +85,10 @@ class ExamHeader {
   final String teacherName;
 
   ExamHeader copyWith({
+    String? administrationLine,
+    bool? showAdditionalHeaderLines,
+    String? studentNameLabel,
+    String? studentNumberLabel,
     String? countryLine,
     String? ministryLine,
     String? directorateLine,
@@ -95,6 +107,10 @@ class ExamHeader {
     String? teacherName,
   }) =>
       ExamHeader(
+        administrationLine: administrationLine ?? this.administrationLine,
+        showAdditionalHeaderLines: showAdditionalHeaderLines ?? this.showAdditionalHeaderLines,
+        studentNameLabel: studentNameLabel ?? this.studentNameLabel,
+        studentNumberLabel: studentNumberLabel ?? this.studentNumberLabel,
         countryLine: countryLine ?? this.countryLine,
         ministryLine: ministryLine ?? this.ministryLine,
         directorateLine: directorateLine ?? this.directorateLine,
@@ -557,7 +573,7 @@ class OfficialExamTemplate {
           schoolName:
               schoolName.trim().isEmpty ? 'متوسطة ........ للبنين' : schoolName,
           examTitleLine: examTitle,
-          academicYear: '$academicYear م',
+          academicYear: academicYear,
           roundLine: round,
           timeAllowed: 'الوقت : $timeAllowed',
           includeStudentFields: includeStudentFields,

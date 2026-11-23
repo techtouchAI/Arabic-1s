@@ -54,11 +54,6 @@ class ExamDocxBuilder {
     return buildStoredZip(entries);
   }
 
-  static String _formatDigits(Object value, ArabicExamPaper paper) {
-    final raw = toWesternDigits(value.toString());
-    return paper.typography.useWesternDigits ? raw : toArabicDigits(raw);
-  }
-
   static String _degreeBadge(int degree, ArabicExamPaper paper) {
     final label = formatDegreeLabel(
       degree,
@@ -70,7 +65,8 @@ class ExamDocxBuilder {
   static String _documentXml(ArabicExamPaper paper) {
     final bodyHalfPt = paper.typography.bodySizePt * 2;
     final headingHalfPt = paper.typography.headingSizePt * 2;
-    final headerHalfPt = (paper.typography.bodySizePt - 1).clamp(10, 22) * 2;
+    // The reference header uses regular 14-point text independently of the body.
+    const headerHalfPt = ExamHeaderLayout.fontSizePt * 2;
     final font = _esc(paper.typography.font.family);
 
     final buf = StringBuffer()
@@ -90,11 +86,14 @@ class ExamDocxBuilder {
       buf.write(
         '<w:p><w:pPr>'
         '<w:bidi/>'
-        '<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="4" w:color="000000"/></w:pBdr>'
-        '<w:spacing w:before="80" w:after="100" w:line="260" w:lineRule="auto"/>'
-        '<w:jc w:val="both"/>'
+        '<w:pBdr><w:bottom w:val="single" w:sz="12" w:space="1" w:color="000000"/></w:pBdr>'
+        '<w:tabs><w:tab w:val="right" w:pos="${printableWidthDxa ~/ 2}"/></w:tabs>'
+        '<w:spacing w:before="0" w:after="100" w:line="240" w:lineRule="auto"/>'
+        '<w:jc w:val="right"/>'
         '</w:pPr>'
-        '${_run('اسم الطالب : ............................................    الرقم الامتحاني : ............................', font, headerHalfPt, bold: true)}'
+        '${_run(paper.header.studentNameLabel, font, headerHalfPt, bold: false)}'
+        '<w:r>${_rPr(font, headerHalfPt, bold: false)}<w:tab/></w:r>'
+        '${_run(paper.header.studentNumberLabel, font, headerHalfPt, bold: false)}'
         '</w:p>',
       );
     } else {
@@ -151,28 +150,7 @@ class ExamDocxBuilder {
     String font,
     int halfPt,
   ) {
-    final h = paper.header;
-    final rightLines = <String>[
-      h.countryLine,
-      h.ministryLine,
-      h.directorateLine,
-      h.schoolName,
-    ].where((s) => s.trim().isNotEmpty).toList(growable: false);
-
-    final centerLines = <String>[
-      h.examTitleLine,
-      h.subjectLine,
-      h.gradeLine,
-      if (h.academicYear.trim().isNotEmpty)
-        'للعام الدراسي ${_formatDigits(h.academicYear.trim(), paper)}',
-    ].where((s) => s.trim().isNotEmpty).toList(growable: false);
-
-    final leftLines = <String>[
-      h.roundLine,
-      h.timeAllowed,
-      if (h.examDate.trim().isNotEmpty) 'التاريخ : ${h.examDate.trim()}',
-      h.noteLine,
-    ].where((s) => s.trim().isNotEmpty).toList(growable: false);
+    final cells = ExamHeaderLayout.build(paper);
 
     String cellXml(List<String> lines, int widthDxa) {
       final pXml = StringBuffer();
@@ -183,7 +161,7 @@ class ExamDocxBuilder {
           '<w:spacing w:before="0" w:after="24" w:line="240" w:lineRule="auto"/>'
           '<w:jc w:val="center"/>'
           '</w:pPr>'
-          '${_run(line, font, halfPt, bold: true)}'
+          '${_run(line, font, halfPt, bold: false)}'
           '</w:p>',
         );
       }
@@ -191,7 +169,7 @@ class ExamDocxBuilder {
         pXml.write('<w:p><w:pPr><w:bidi/></w:pPr></w:p>');
       }
       return '<w:tc>'
-          '<w:tcPr><w:tcW w:w="$widthDxa" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>'
+          '<w:tcPr><w:tcW w:w="$widthDxa" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>'
           '$pXml'
           '</w:tc>';
     }
@@ -211,14 +189,14 @@ class ExamDocxBuilder {
         '<w:tblLayout w:type="fixed"/>'
         '</w:tblPr>'
         '<w:tblGrid>'
-        '<w:gridCol w:w="3316"/>'
-        '<w:gridCol w:w="3834"/>'
-        '<w:gridCol w:w="3316"/>'
+        '<w:gridCol w:w="${ExamHeaderLayout.columnWidthsDxa[0]}"/>'
+        '<w:gridCol w:w="${ExamHeaderLayout.columnWidthsDxa[1]}"/>'
+        '<w:gridCol w:w="${ExamHeaderLayout.columnWidthsDxa[2]}"/>'
         '</w:tblGrid>'
         '<w:tr>'
-        '${cellXml(rightLines, 3316)}'
-        '${cellXml(centerLines, 3834)}'
-        '${cellXml(leftLines, 3316)}'
+        '${cellXml(cells[0], ExamHeaderLayout.columnWidthsDxa[0])}'
+        '${cellXml(cells[1], ExamHeaderLayout.columnWidthsDxa[1])}'
+        '${cellXml(cells[2], ExamHeaderLayout.columnWidthsDxa[2])}'
         '</w:tr>'
         '</w:tbl>';
   }

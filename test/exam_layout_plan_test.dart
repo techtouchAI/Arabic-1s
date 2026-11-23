@@ -110,6 +110,76 @@ void main() {
     expect(xml.findAllElements('w:t').any((e) => e.innerText.contains('نص < & >')), isTrue);
   });
 
+  test('editable header cells and eight-point body are shared with Word', () async {
+    final content = await loadTestContent();
+    final paper = content.examBank.officialTemplates.first.toExamPaper().copyWith(
+      header: const ExamHeader(
+        showAdditionalHeaderLines: true,
+        countryLine: 'الدولة المعدلة', ministryLine: '',
+        examDate: '٢٠٢٦/١١/٢٣', noteLine: 'ملاحظة معدلة',
+        academicYear: '٢٠٢٦',
+      ),
+      typography: const ExamTypography(bodySizePt: 8, headingSizePt: 9),
+    );
+    final cells = ExamHeaderLayout.build(paper);
+    expect(cells[0], contains('الدولة المعدلة'));
+    expect(cells[0], isNot(contains('')));
+    expect(cells[1], contains('للعام الدراسي 2026'));
+    expect(cells[2], contains('التاريخ : ٢٠٢٦/١١/٢٣'));
+    final xml = document(paper);
+    final tableCells = xml.findAllElements('w:tbl').first.findAllElements('w:tc').toList();
+    for (var i = 0; i < cells.length; i++) {
+      expect(tableCells[i].findAllElements('w:t').map((e) => e.innerText), cells[i]);
+    }
+    final body = xml.findAllElements('w:body').single;
+    final paragraphs = body.findElements('w:p').toList();
+    final plan = ExamLayoutPlan.build(paper);
+    final promptIndex = plan.indexWhere((p) => p.kind == ExamParagraphKind.prompt);
+    final prompt = paragraphs[promptIndex + 1];
+    expect(prompt.findAllElements('w:sz').first.getAttribute('w:val'), '16');
+    expect(prompt.findAllElements('w:szCs').first.getAttribute('w:val'), '16');
+  });
+
+  test('reference header has three ordered columns and editable student labels', () async {
+    final content = await loadTestContent();
+    final paper = content.examBank.officialTemplates.first.toExamPaper().copyWith(
+      header: const ExamHeader(
+        administrationLine: 'ادارة', schoolName: 'ثانوية الاعلام للبنين',
+        examTitleLine: 'اسئلة امتحان نهاية السنة', academicYear: '2024-2025',
+        roundLine: 'الدور الاول', subjectLine: 'المادة : اللغة العربية',
+        gradeLine: 'الصف : الاول المتوسط', timeAllowed: 'الوقت : ساعة ونصف',
+        studentNameLabel: 'اسم الطالب :', studentNumberLabel: 'الرقم الامتحاني :',
+      ),
+    );
+    final cells = ExamHeaderLayout.build(paper);
+    expect(cells, <List<String>>[
+      <String>['ادارة', 'ثانوية الاعلام للبنين'],
+      <String>['اسئلة امتحان نهاية السنة', 'للعام الدراسي 2024-2025', 'الدور الاول'],
+      <String>['المادة : اللغة العربية', 'الصف : الاول المتوسط', 'الوقت : ساعة ونصف'],
+    ]);
+    final xml = document(paper);
+    final tableCells = xml.findAllElements('w:tbl').first.findAllElements('w:tc').toList();
+    for (var i = 0; i < cells.length; i++) {
+      expect(tableCells[i].findAllElements('w:t').map((e) => e.innerText), cells[i]);
+      expect(tableCells[i].findAllElements('w:vAlign').single.getAttribute('w:val'), 'top');
+      expect(tableCells[i].findAllElements('w:b'), isEmpty);
+      expect(tableCells[i].findAllElements('w:sz').first.getAttribute('w:val'), '28');
+    }
+    final firstParagraph = xml.findAllElements('w:body').single.findElements('w:p').first;
+    expect(firstParagraph.findAllElements('w:t').map((e) => e.innerText),
+        <String>['اسم الطالب :', 'الرقم الامتحاني :']);
+    expect(firstParagraph.findAllElements('w:tab'), isNotEmpty);
+    expect(firstParagraph.findAllElements('w:bottom'), isNotEmpty);
+    final custom = paper.copyWith(header: paper.header.copyWith(
+      administrationLine: 'إدارة معدّلة', studentNameLabel: 'اسم المتعلم :',
+      studentNumberLabel: 'رقمه :', showAdditionalHeaderLines: true,
+    ));
+    expect(ExamHeaderLayout.build(custom)[0], contains('إدارة معدّلة'));
+    expect(ExamHeaderLayout.build(custom)[0], contains(custom.header.directorateLine));
+    final text = document(custom).findAllElements('w:t').map((e) => e.innerText);
+    expect(text, containsAll(<String>['اسم المتعلم :', 'رقمه :']));
+  });
+
   test('generation keeps source structure and spacing survives template switches', () async {
     final content = await loadTestContent();
     final controller = ExamComposerController(
@@ -132,8 +202,20 @@ void main() {
                 : <List<int>>[<int>[10, 5], <int>[6, 4], <int>[6, 4]]);
       }
     }
+    controller.updateHeader(controller.paper.header.copyWith(
+      administrationLine: 'إدارة معدلة',
+      includeStudentFields: true,
+      studentNameLabel: 'اسم المتعلم',
+      showAdditionalHeaderLines: true,
+      noteLine: 'ملاحظة محفوظة',
+    ));
     controller.loadOfficialTemplate(content.examBank.officialTemplates.first);
     expect(controller.paper.typography.spacing, same(spacing));
+    expect(controller.paper.header.administrationLine, 'إدارة معدلة');
+    expect(controller.paper.header.studentNameLabel, 'اسم المتعلم');
+    expect(controller.paper.header.includeStudentFields, isTrue);
+    expect(controller.paper.header.showAdditionalHeaderLines, isTrue);
+    expect(controller.paper.header.noteLine, 'ملاحظة محفوظة');
     expect(() => const ExamSpacing().copyWith(lineHeight: 0), throwsAssertionError);
     expect(() => const ExamSpacing().copyWith(itemGapPt: -1), throwsAssertionError);
   });
