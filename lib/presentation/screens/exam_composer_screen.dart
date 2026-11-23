@@ -1,0 +1,1397 @@
+import 'package:flutter/material.dart';
+
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/dimens.dart';
+import '../../core/utils/arabic_text.dart';
+import '../../core/widgets/app_page.dart';
+import '../../core/widgets/section_header.dart';
+import '../../data/local/exam_document_exporter.dart';
+import '../../domain/models/exam_paper.dart';
+import '../state/app_state.dart';
+import '../state/exam_composer_state.dart';
+import '../widgets/text_scale_controls.dart';
+import '../widgets/underline_rich_text.dart';
+
+typedef ExportExamCallback = Future<ExportOutcome> Function(ArabicExamPaper paper);
+
+class ExamComposerScreen extends StatefulWidget {
+  const ExamComposerScreen({super.key, this.onExport});
+
+  final ExportExamCallback? onExport;
+
+  @override
+  State<ExamComposerScreen> createState() => _ExamComposerScreenState();
+}
+
+class _ExamComposerScreenState extends State<ExamComposerScreen> {
+  ExamComposerController? _controller;
+  int _tabIndex = 0; // 0 = التحرير والتخصيص, 1 = معاينة الورقة الرسمية
+  bool _exporting = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_controller == null) {
+      final state = AppScope.of(context);
+      _controller = ExamComposerController(
+        examBank: state.examBank,
+        teacherProfile: state.teacherProfile,
+        activePart: state.activePart,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _exportPaper() async {
+    final ctrl = _controller;
+    if (ctrl == null || _exporting) {
+      return;
+    }
+    setState(() => _exporting = true);
+    try {
+      final exporter = widget.onExport ?? const ExamDocumentExporter().exportDocx;
+      final outcome = await exporter(ctrl.paper);
+      if (!mounted) {
+        return;
+      }
+      if (outcome.kind == ExportOutcomeKind.savedToFile) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ ملف Word بنجاح: ${outcome.filePath}'),
+          ),
+        );
+      } else if (outcome.kind == ExportOutcomeKind.shared) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تجهيز ملف أسئلة الامتحان (.docx) للمشاركة.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر تصدير ملف Word: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _exporting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctrl = _controller!;
+    return AnimatedBuilder(
+      animation: ctrl,
+      builder: (BuildContext context, _) {
+        final paper = ctrl.paper;
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('مولّد أسئلة الامتحان الرسمي (Word)'),
+            actions: const <Widget>[TextScaleControls()],
+          ),
+          body: Column(
+            children: <Widget>[
+              // Mode toggle bar
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  border: Border(
+                    bottom: BorderSide(color: scheme.outlineVariant),
+                  ),
+                ),
+                child: AppPage(
+                  maxWidth: AppLayout.readingMaxWidth,
+                  padding: EdgeInsets.zero,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: <Widget>[
+                      SegmentedButton<int>(
+                        segments: const <ButtonSegment<int>>[
+                          ButtonSegment<int>(
+                            value: 0,
+                            icon: Icon(Icons.tune, size: 18),
+                            label: Text('إعداد الأسئلة'),
+                          ),
+                          ButtonSegment<int>(
+                            value: 1,
+                            icon: Icon(Icons.preview_outlined, size: 18),
+                            label: Text('معاينة ورقة A4'),
+                          ),
+                        ],
+                        selected: <int>{_tabIndex},
+                        onSelectionChanged: (Set<int> next) {
+                          if (next.isNotEmpty) {
+                            setState(() => _tabIndex = next.first);
+                          }
+                        },
+                      ),
+                      _DegreeSummaryBadge(paper: paper),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _tabIndex == 0
+                    ? _ComposerEditorView(controller: ctrl)
+                    : _LivePaperPreview(paper: paper),
+              ),
+            ],
+          ),
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              border: Border(top: BorderSide(color: scheme.outlineVariant)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.sm,
+                ),
+                child: AppPage(
+                  maxWidth: AppLayout.readingMaxWidth,
+                  padding: EdgeInsets.zero,
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'المجموع الكلي: ${toArabicDigits(paper.totalDegree)} درجة '
+                          '(${toArabicDigits(paper.composition.degree)} + '
+                          '${toArabicDigits(paper.grammar.degree)} + '
+                          '${toArabicDigits(paper.orthography.degree)})',
+                          style: theme.textTheme.labelLarge,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      FilledButton.icon(
+                        key: const ValueKey<String>('export-docx-button'),
+                        onPressed: _exporting ? null : _exportPaper,
+                        icon: _exporting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.download_outlined, size: 20),
+                        label: Text(
+                          _exporting ? 'جاري التصدير...' : 'تصدير Word (.docx)',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DegreeSummaryBadge extends StatelessWidget {
+  const _DegreeSummaryBadge({required this.paper});
+
+  final ArabicExamPaper paper;
+
+  @override
+  Widget build(BuildContext context) {
+    final balanced = paper.grammarBalanced && paper.orthographyBalanced;
+    final okColor = AppColors.resolveAccent('green', Theme.of(context).brightness);
+    final warnColor = Theme.of(context).colorScheme.error;
+    final color = balanced ? okColor : warnColor;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            balanced ? Icons.verified_outlined : Icons.warning_amber_rounded,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            balanced
+                ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
+                : 'راجع مجموع درجات الأفرع',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComposerEditorView extends StatelessWidget {
+  const _ComposerEditorView({required this.controller});
+
+  final ExamComposerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final paper = controller.paper;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return ListView(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.md,
+        bottom: AppSpacing.xxl,
+      ),
+      children: <Widget>[
+        AppPage(
+          maxWidth: AppLayout.readingMaxWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              // 1. Quick Presets & Official Word Templates
+              SectionHeader(
+                title: 'النماذج الرسمية والتوليد الذكي',
+                subtitle:
+                    'اختر نموذجاً رسمياً جاهزاً أو ولّد نسخة متوازنة جديدة بضغطة واحدة',
+                accent: scheme.secondary,
+              ),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'توليد امتحان جديد من بنك الأسئلة:',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: <Widget>[
+                        FilledButton.tonalIcon(
+                          key: const ValueKey<String>('gen-exam-part1'),
+                          onPressed: () =>
+                              controller.generateBalancedExam(scope: 'part1'),
+                          icon: const Icon(Icons.auto_awesome, size: 17),
+                          label: const Text('نصف السنة (الجزء الأول)'),
+                        ),
+                        FilledButton.tonalIcon(
+                          key: const ValueKey<String>('gen-exam-part2'),
+                          onPressed: () =>
+                              controller.generateBalancedExam(scope: 'part2'),
+                          icon: const Icon(Icons.auto_awesome, size: 17),
+                          label: const Text('الفصل الثاني (الجزء الثاني)'),
+                        ),
+                        FilledButton.tonalIcon(
+                          key: const ValueKey<String>('gen-exam-both'),
+                          onPressed: () =>
+                              controller.generateBalancedExam(scope: 'both'),
+                          icon: const Icon(Icons.auto_awesome, size: 17),
+                          label: const Text('نهاية السنة (شامل)'),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 22),
+                    Text(
+                      'أو تحميل أحد نماذج الأسئلة الرسمية الأربعة المعتمدة:',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: <Widget>[
+                        for (final tpl in controller.examBank.officialTemplates)
+                          ActionChip(
+                            key: ValueKey<String>('tpl-${tpl.id}'),
+                            avatar: const Icon(Icons.article_outlined, size: 17),
+                            label: Text('${tpl.round} (${tpl.academicYear})'),
+                            onPressed: () =>
+                                controller.loadOfficialTemplate(tpl),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // 2. Header & Typography Card
+              SectionHeader(
+                title: 'ترويسة الورقة والخط المطبعي',
+                subtitle: 'بيانات المدرسة، الدور، الوقت، واسم مدرس المادة',
+                accent: scheme.primary,
+              ),
+              _HeaderAndTypographyEditor(controller: controller),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // 3. Section 1 — الإنشاء
+              SectionHeader(
+                title: 'أولاً: الإنشاء (${toArabicDigits(paper.composition.degree)} درجة)',
+                subtitle: 'موضوعان يختار الطالب الكتابة في أحدهما',
+                accent: AppColors.resolveAccent('gold', theme.brightness),
+                trailing: TextButton.icon(
+                  onPressed: () => _pickCompositionFromBank(context, controller),
+                  icon: const Icon(Icons.library_add_outlined, size: 18),
+                  label: const Text('من بنك الإنشاء'),
+                ),
+              ),
+              _CompositionEditor(controller: controller),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // 4. Section 2 — قواعد اللغة العربية
+              SectionHeader(
+                title:
+                    'ثانياً: قواعد اللغة العربية (${toArabicDigits(paper.grammar.degree)} درجة)',
+                subtitle:
+                    'مجموع الأفرع الحالي: ${toArabicDigits(paper.grammar.branchesSum)} درجة — ضع علامة _حول الكلمة_ لوضع خط تحتها في Word',
+                accent: scheme.primary,
+                trailing: TextButton.icon(
+                  onPressed: () => controller.addQuestionBlock(isGrammar: true),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('سؤال جديد'),
+                ),
+              ),
+              for (var qi = 0; qi < paper.grammar.questions.length; qi++)
+                _QuestionBlockEditor(
+                  controller: controller,
+                  isGrammar: true,
+                  questionIndex: qi,
+                  block: paper.grammar.questions[qi],
+                ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // 5. Section 3 — الإملاء
+              SectionHeader(
+                title:
+                    'ثالثاً: الإملاء (${toArabicDigits(paper.orthography.degree)} درجة)',
+                subtitle:
+                    'مجموع الأفرع الحالي: ${toArabicDigits(paper.orthography.branchesSum)} درجة',
+                accent: AppColors.resolveAccent('green', theme.brightness),
+                trailing: TextButton.icon(
+                  onPressed: () => _pickOrthographyBranch(context, controller),
+                  icon: const Icon(Icons.library_add_outlined, size: 18),
+                  label: const Text('استبدال من بنك الإملاء'),
+                ),
+              ),
+              for (var qi = 0; qi < paper.orthography.questions.length; qi++)
+                _QuestionBlockEditor(
+                  controller: controller,
+                  isGrammar: false,
+                  questionIndex: qi,
+                  block: paper.orthography.questions[qi],
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _pickCompositionFromBank(
+    BuildContext context,
+    ExamComposerController ctrl,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          children: <Widget>[
+            Text(
+              'اختر موضوعاً لإضافته إلى قسم الإنشاء',
+              style: Theme.of(ctx).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            for (final item in ctrl.examBank.compositionTopics) ...<Widget>[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(item.text),
+                subtitle: Text(
+                  item.part == 'part1' ? 'الجزء الأول' : 'الجزء الثاني',
+                ),
+                trailing: const Icon(Icons.add_circle_outline),
+                onTap: () {
+                  final nextTopics = <String>[
+                    ...ctrl.paper.composition.topics,
+                    item.text,
+                  ];
+                  ctrl.updateComposition(
+                    ctrl.paper.composition.copyWith(topics: nextTopics),
+                  );
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              const Divider(height: 1),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  void _pickOrthographyBranch(
+    BuildContext context,
+    ExamComposerController ctrl,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          children: <Widget>[
+            Text(
+              'اختر سؤال إملاء لإضافته كفرع جديد',
+              style: Theme.of(ctx).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            for (final item in ctrl.examBank.orthographyItems) ...<Widget>[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(item.prompt),
+                subtitle: Text(
+                  item.items.isEmpty
+                      ? 'سؤال تعريفي / تمثيلي'
+                      : item.items.join(' • '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.add_circle_outline),
+                onTap: () {
+                  ctrl.addBranchToQuestion(isGrammar: false, questionIndex: 0);
+                  final lastIdx =
+                      ctrl.paper.orthography.questions[0].branches.length - 1;
+                  final currentBranch =
+                      ctrl.paper.orthography.questions[0].branches[lastIdx];
+                  ctrl.updateBranch(
+                    isGrammar: false,
+                    questionIndex: 0,
+                    branchIndex: lastIdx,
+                    updated: currentBranch.copyWith(
+                      prompt: item.prompt,
+                      degree: item.defaultDegree,
+                      items: item.items,
+                      itemLayout: item.itemLayout,
+                    ),
+                  );
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              const Divider(height: 1),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HeaderAndTypographyEditor extends StatelessWidget {
+  const _HeaderAndTypographyEditor({required this.controller});
+
+  final ExamComposerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = controller.paper.header;
+    final typo = controller.paper.typography;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          _LabeledField(
+            label: 'اسم المدرسة',
+            initialValue: h.schoolName,
+            onChanged: (v) => controller.updateHeader(h.copyWith(schoolName: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'مديرية التربية',
+            initialValue: h.directorateLine,
+            onChanged: (v) =>
+                controller.updateHeader(h.copyWith(directorateLine: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              final titleField = _LabeledField(
+                label: 'عنوان الامتحان',
+                initialValue: h.examTitleLine,
+                onChanged: (v) =>
+                    controller.updateHeader(h.copyWith(examTitleLine: v)),
+              );
+              final roundField = _LabeledField(
+                label: 'الدور / الفصل',
+                initialValue: h.roundLine,
+                onChanged: (v) =>
+                    controller.updateHeader(h.copyWith(roundLine: v)),
+              );
+              if (c.maxWidth >= 540) {
+                return Row(
+                  children: <Widget>[
+                    Expanded(child: titleField),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(child: roundField),
+                  ],
+                );
+              }
+              return Column(
+                children: <Widget>[
+                  titleField,
+                  const SizedBox(height: AppSpacing.sm),
+                  roundField,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              final yearField = _LabeledField(
+                label: 'العام الدراسي',
+                initialValue: h.academicYear,
+                onChanged: (v) =>
+                    controller.updateHeader(h.copyWith(academicYear: v)),
+              );
+              final timeField = _LabeledField(
+                label: 'الوقت المخصص',
+                initialValue: h.timeAllowed,
+                onChanged: (v) =>
+                    controller.updateHeader(h.copyWith(timeAllowed: v)),
+              );
+              if (c.maxWidth >= 540) {
+                return Row(
+                  children: <Widget>[
+                    Expanded(child: yearField),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(child: timeField),
+                  ],
+                );
+              }
+              return Column(
+                children: <Widget>[
+                  yearField,
+                  const SizedBox(height: AppSpacing.sm),
+                  timeField,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LabeledField(
+            label: 'اسم مدرس المادة (في التوقيع أسفل اليسار)',
+            initialValue: h.teacherName,
+            onChanged: (v) =>
+                controller.updateHeader(h.copyWith(teacherName: v)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('إظهار شريط (اسم الطالب والرقم الامتحاني)'),
+            value: h.includeStudentFields,
+            onChanged: (v) =>
+                controller.updateHeader(h.copyWith(includeStudentFields: v)),
+          ),
+          const Divider(height: 16),
+          DropdownButtonFormField<ExamFontChoice>(
+            initialValue: typo.font,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'نوع خط ملف Word'),
+            items: <DropdownMenuItem<ExamFontChoice>>[
+              for (final f in ExamFontChoice.values)
+                DropdownMenuItem<ExamFontChoice>(
+                  value: f,
+                  child: Text(f.label),
+                ),
+            ],
+            onChanged: (ExamFontChoice? next) {
+              if (next != null) {
+                controller.updateTypography(typo.copyWith(font: next));
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: <Widget>[
+              const Text('حجم الخط (نقطة):'),
+              Expanded(
+                child: Slider(
+                  value: typo.bodySizePt.toDouble(),
+                  min: 11,
+                  max: 18,
+                  divisions: 7,
+                  label: '${typo.bodySizePt} pt',
+                  onChanged: (double v) => controller.updateTypography(
+                    typo.copyWith(
+                      bodySizePt: v.round(),
+                      headingSizePt: v.round() + 1,
+                    ),
+                  ),
+                ),
+              ),
+              Text('${toArabicDigits(typo.bodySizePt)} نقطة'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompositionEditor extends StatelessWidget {
+  const _CompositionEditor({required this.controller});
+
+  final ExamComposerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final comp = controller.paper.composition;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _LabeledField(
+                  label: 'صيغة سؤال الإنشاء',
+                  initialValue: comp.prompt,
+                  onChanged: (v) =>
+                      controller.updateComposition(comp.copyWith(prompt: v)),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              SizedBox(
+                width: 96,
+                child: _DegreeStepper(
+                  degree: comp.degree,
+                  onChanged: (d) =>
+                      controller.updateComposition(comp.copyWith(degree: d)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (var i = 0; i < comp.topics.length; i++) ...<Widget>[
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: _LabeledField(
+                      label: 'الموضوع (${toArabicDigits(i + 1)})',
+                      initialValue: comp.topics[i],
+                      maxLines: 2,
+                      onChanged: (String v) {
+                        final list = List<String>.from(comp.topics);
+                        list[i] = v;
+                        controller.updateComposition(
+                          comp.copyWith(topics: list),
+                        );
+                      },
+                    ),
+                  ),
+                  if (comp.topics.length > 1)
+                    IconButton(
+                      tooltip: 'حذف الموضوع',
+                      onPressed: () {
+                        final list = List<String>.from(comp.topics)
+                          ..removeAt(i);
+                        controller.updateComposition(
+                          comp.copyWith(topics: list),
+                        );
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () {
+                final list = <String>[...comp.topics, 'اكتب في موضوع جديد...'];
+                controller.updateComposition(comp.copyWith(topics: list));
+              },
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('إضافة موضوع إنشاء يدوي'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuestionBlockEditor extends StatelessWidget {
+  const _QuestionBlockEditor({
+    required this.controller,
+    required this.isGrammar,
+    required this.questionIndex,
+    required this.block,
+  });
+
+  final ExamComposerController controller;
+  final bool isGrammar;
+  final int questionIndex;
+  final ExamQuestionBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'السؤال ${toArabicDigits(block.number)} '
+                  '(${toArabicDigits(block.totalDegree)} درجات)',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => controller.addBranchToQuestion(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                ),
+                icon: const Icon(Icons.call_split, size: 17),
+                label: const Text('إضافة فرع'),
+              ),
+              if ((isGrammar
+                          ? controller.paper.grammar.questions.length
+                          : controller.paper.orthography.questions.length) >
+                  1)
+                IconButton(
+                  tooltip: 'حذف السؤال',
+                  onPressed: () => controller.removeQuestionBlock(
+                    isGrammar: isGrammar,
+                    questionIndex: questionIndex,
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+            ],
+          ),
+          for (var bi = 0; bi < block.branches.length; bi++) ...<Widget>[
+            const Divider(height: 20),
+            _BranchEditor(
+              controller: controller,
+              isGrammar: isGrammar,
+              questionIndex: questionIndex,
+              branchIndex: bi,
+              branch: block.branches[bi],
+              canRemove: block.branches.length > 1,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BranchEditor extends StatelessWidget {
+  const _BranchEditor({
+    required this.controller,
+    required this.isGrammar,
+    required this.questionIndex,
+    required this.branchIndex,
+    required this.branch,
+    required this.canRemove,
+  });
+
+  final ExamComposerController controller;
+  final bool isGrammar;
+  final int questionIndex;
+  final int branchIndex;
+  final ExamBranch branch;
+  final bool canRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            if (branch.branch.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 10),
+                child: Chip(label: Text('فرع ${branch.branch}')),
+              ),
+            Expanded(
+              child: _LabeledField(
+                label: 'منطوق السؤال / الفرع',
+                initialValue: branch.prompt,
+                onChanged: (String v) => controller.updateBranch(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                  branchIndex: branchIndex,
+                  updated: branch.copyWith(prompt: v),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 92,
+              child: _DegreeStepper(
+                degree: branch.degree,
+                onChanged: (int d) => controller.updateBranch(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                  branchIndex: branchIndex,
+                  updated: branch.copyWith(degree: d),
+                ),
+              ),
+            ),
+            if (canRemove)
+              IconButton(
+                tooltip: 'حذف الفرع',
+                onPressed: () => controller.removeBranchFromQuestion(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                  branchIndex: branchIndex,
+                ),
+                icon: const Icon(Icons.close, size: 19),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            Text('تنسيق النقاط:', style: theme.textTheme.labelMedium),
+            for (final layout in ExamItemLayout.values)
+              ChoiceChip(
+                label: Text(layout.label),
+                selected: branch.itemLayout == layout,
+                onSelected: (_) => controller.updateBranch(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                  branchIndex: branchIndex,
+                  updated: branch.copyWith(itemLayout: layout),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        for (var ii = 0; ii < branch.items.length; ii++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: _LabeledField(
+                    label: 'نقطة (${toArabicDigits(ii + 1)})',
+                    initialValue: branch.items[ii],
+                    onChanged: (String v) {
+                      final next = List<String>.from(branch.items);
+                      next[ii] = v;
+                      controller.updateBranch(
+                        isGrammar: isGrammar,
+                        questionIndex: questionIndex,
+                        branchIndex: branchIndex,
+                        updated: branch.copyWith(items: next),
+                      );
+                    },
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'حذف النقطة',
+                  onPressed: () {
+                    final next = List<String>.from(branch.items)..removeAt(ii);
+                    controller.updateBranch(
+                      isGrammar: isGrammar,
+                      questionIndex: questionIndex,
+                      branchIndex: branchIndex,
+                      updated: branch.copyWith(items: next),
+                    );
+                  },
+                  icon: const Icon(Icons.remove_circle_outline, size: 19),
+                ),
+              ],
+            ),
+          ),
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: <Widget>[
+            TextButton.icon(
+              onPressed: () {
+                final next = <String>[...branch.items, 'نقطة جديدة...'];
+                controller.updateBranch(
+                  isGrammar: isGrammar,
+                  questionIndex: questionIndex,
+                  branchIndex: branchIndex,
+                  updated: branch.copyWith(items: next),
+                );
+              },
+              icon: const Icon(Icons.add, size: 17),
+              label: const Text('إضافة نقطة يدوية'),
+            ),
+            if (isGrammar)
+              TextButton.icon(
+                onPressed: () => _pickGrammarItemFromBank(context),
+                icon: const Icon(Icons.library_books_outlined, size: 17),
+                label: const Text('إضافة من بنك القواعد'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _pickGrammarItemFromBank(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          children: <Widget>[
+            Text(
+              'اختر فقرة من بنك أسئلة القواعد الرسمي',
+              style: Theme.of(ctx).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final gi in controller.examBank.grammarItems) ...<Widget>[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: UnderlineRichText(gi.text),
+                subtitle: Text(
+                  '${gi.part == 'part1' ? 'الجزء الأول' : 'الجزء الثاني'} • ${gi.promptGroup}',
+                ),
+                trailing: const Icon(Icons.add_circle_outline),
+                onTap: () {
+                  final next = <String>[...branch.items, gi.text];
+                  controller.updateBranch(
+                    isGrammar: isGrammar,
+                    questionIndex: questionIndex,
+                    branchIndex: branchIndex,
+                    updated: branch.copyWith(items: next),
+                  );
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              const Divider(height: 1),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Live WYSIWYG A4 paper preview showing the exact Iraqi exam layout.
+class _LivePaperPreview extends StatelessWidget {
+  const _LivePaperPreview({required this.paper});
+
+  final ArabicExamPaper paper;
+
+  @override
+  Widget build(BuildContext context) {
+    const paperInk = Color(0xFF141414);
+    final baseStyle = TextStyle(
+      fontFamily: 'Amiri',
+      fontSize: paper.typography.bodySizePt.toDouble() + 1,
+      color: paperInk,
+      fontWeight: FontWeight.w700,
+      height: 1.55,
+    );
+    final headerStyle = baseStyle.copyWith(fontSize: 13.5);
+    final sectionStyle = baseStyle.copyWith(
+      fontSize: paper.typography.headingSizePt.toDouble() + 1.5,
+      decoration: TextDecoration.underline,
+    );
+
+    String fmtNum(Object n) => paper.typography.useWesternDigits
+        ? toWesternDigits('$n')
+        : toArabicDigits(n);
+
+    String badge(int deg) =>
+        '( ${formatDegreeLabel(deg, westernDigits: paper.typography.useWesternDigits)} )';
+
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: <Widget>[
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.black26),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x1F000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  // 3-column header
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      SizedBox(
+                        width: 220,
+                        child: Column(
+                          children: <Widget>[
+                            Text(paper.header.countryLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.ministryLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.directorateLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.schoolName, style: headerStyle, textAlign: TextAlign.center),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 250,
+                        child: Column(
+                          children: <Widget>[
+                            Text(paper.header.examTitleLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.subjectLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.gradeLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text('للعام الدراسي ${paper.header.academicYear}', style: headerStyle, textAlign: TextAlign.center),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 220,
+                        child: Column(
+                          children: <Widget>[
+                            Text(paper.header.roundLine, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.timeAllowed, style: headerStyle, textAlign: TextAlign.center),
+                            Text(paper.header.noteLine, style: headerStyle, textAlign: TextAlign.center),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (paper.header.includeStudentFields) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      'اسم الطالب : ....................................    الرقم الامتحاني : ........................',
+                      style: headerStyle,
+                    ),
+                  ],
+                  const Divider(color: Colors.black, thickness: 1.5, height: 18),
+
+                  // الإنشاء
+                  Text(
+                    'الانشاء : ${badge(paper.composition.degree)}',
+                    style: sectionStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(paper.composition.prompt, style: baseStyle),
+                  for (var i = 0; i < paper.composition.topics.length; i++)
+                    Text(
+                      '${fmtNum(i + 1)}- ${paper.composition.topics[i]}',
+                      style: baseStyle,
+                    ),
+
+                  const SizedBox(height: 10),
+                  // القواعد
+                  Text(
+                    'قواعد اللغة العربية : ${badge(paper.grammar.degree)}',
+                    style: sectionStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                  _PreviewSectionBody(
+                    section: paper.grammar,
+                    paper: paper,
+                    baseStyle: baseStyle,
+                  ),
+
+                  const SizedBox(height: 10),
+                  // الإملاء
+                  Text(
+                    'الاملاء : ${badge(paper.orthography.degree)}',
+                    style: sectionStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                  _PreviewSectionBody(
+                    section: paper.orthography,
+                    paper: paper,
+                    baseStyle: baseStyle,
+                  ),
+
+                  const SizedBox(height: 16),
+                  Text(
+                    paper.header.closingWish,
+                    style: baseStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      children: <Widget>[
+                        Text(paper.header.teacherTitle, style: baseStyle),
+                        if (paper.header.teacherName.isNotEmpty)
+                          Text(paper.header.teacherName, style: baseStyle),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PreviewSectionBody extends StatelessWidget {
+  const _PreviewSectionBody({
+    required this.section,
+    required this.paper,
+    required this.baseStyle,
+  });
+
+  final ExamQuestionSection section;
+  final ArabicExamPaper paper;
+  final TextStyle baseStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    String fmtNum(Object n) => paper.typography.useWesternDigits
+        ? toWesternDigits('$n')
+        : toArabicDigits(n);
+
+    String badge(int deg) =>
+        '( ${formatDegreeLabel(deg, westernDigits: paper.typography.useWesternDigits)} )';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        for (final q in section.questions)
+          for (var bi = 0; bi < q.branches.length; bi++) ...<Widget>[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: UnderlineRichText(
+                    '${bi == 0 ? (q.branches[bi].branch.isEmpty ? 'س${fmtNum(q.number)}/ ' : 'س${fmtNum(q.number)}/ ${q.branches[bi].branch}- ') : (q.branches[bi].branch.isEmpty ? '' : '${q.branches[bi].branch}- ')}${q.branches[bi].prompt}',
+                    style: baseStyle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(badge(q.branches[bi].degree), style: baseStyle),
+              ],
+            ),
+            if (q.branches[bi].itemLayout == ExamItemLayout.inline)
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: UnderlineRichText(
+                  <String>[
+                    for (var ii = 0; ii < q.branches[bi].items.length; ii++)
+                      '${fmtNum(ii + 1)}- ${q.branches[bi].items[ii]}',
+                  ].join('    '),
+                  style: baseStyle,
+                ),
+              )
+            else if (q.branches[bi].itemLayout == ExamItemLayout.prose)
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: UnderlineRichText(
+                  q.branches[bi].items.join(' '),
+                  style: baseStyle,
+                ),
+              )
+            else
+              for (var ii = 0; ii < q.branches[bi].items.length; ii++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: UnderlineRichText(
+                    '${fmtNum(ii + 1)}- ${q.branches[bi].items[ii]}',
+                    style: baseStyle,
+                  ),
+                ),
+          ],
+      ],
+    );
+  }
+}
+
+class _LabeledField extends StatefulWidget {
+  const _LabeledField({
+    required this.label,
+    required this.initialValue,
+    required this.onChanged,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+  final int maxLines;
+
+  @override
+  State<_LabeledField> createState() => _LabeledFieldState();
+}
+
+class _LabeledFieldState extends State<_LabeledField> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LabeledField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != _ctrl.text &&
+        widget.initialValue != oldWidget.initialValue) {
+      _ctrl.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _ctrl,
+      maxLines: widget.maxLines,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        isDense: true,
+      ),
+      onChanged: widget.onChanged,
+    );
+  }
+}
+
+class _DegreeStepper extends StatelessWidget {
+  const _DegreeStepper({required this.degree, required this.onChanged});
+
+  final int degree;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: <Widget>[
+          InkWell(
+            onTap: degree > 1 ? () => onChanged(degree - 1) : null,
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.remove, size: 16),
+            ),
+          ),
+          Text(
+            toArabicDigits(degree),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          InkWell(
+            onTap: degree < 60 ? () => onChanged(degree + 1) : null,
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.add, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

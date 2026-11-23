@@ -1,0 +1,20 @@
+import '../../data/local/content_loader.dart';
+import '../../data/local/progress_store.dart';
+import 'app_state.dart';
+
+abstract final class AppBootstrap {
+  static Future<AppState> initialize() async {
+    final loader = ContentLoader();
+    final contentFuture = loader.loadAll();
+    final storeFuture = ProgressStore.open();
+
+    final content = await contentFuture;
+    final store = await storeFuture;
+
+    return AppState(
+      library: content.library,
+      examBank: content.examBank,
+      store: store,
+    );
+  }
+}

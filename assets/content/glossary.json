@@ -1,0 +1,453 @@
+{
+  "schemaVersion": 1,
+  "terms": [
+    {
+      "id": "term-01",
+      "part": "part1",
+      "term": "يُوزَعُونَ",
+      "definition": "تُوقَفُ أوائلهم لتلحقهم أواخرهم ثم يُساقون جميعاً.",
+      "unitId": "p1-u1",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-02",
+      "part": "part1",
+      "term": "لا يَحْطِمَنَّكُمْ",
+      "definition": "لا يُهْلِكَنَّكُمْ ولا يَكْسِرَنَّكُمْ.",
+      "unitId": "p1-u1",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-03",
+      "part": "part1",
+      "term": "خَلْوَة",
+      "definition": "المكان المنعزل الخالي من الناس.",
+      "unitId": "p1-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-04",
+      "part": "part1",
+      "term": "إِفْشَاء",
+      "definition": "إذاعة السرّ وكشفه.",
+      "unitId": "p1-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-05",
+      "part": "part1",
+      "term": "أَشَقّ",
+      "definition": "أصعب وأشدّ.",
+      "unitId": "p1-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-06",
+      "part": "part1",
+      "term": "شَائِق",
+      "definition": "مُمْتِع وجذّاب.",
+      "unitId": "p1-u3",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-07",
+      "part": "part1",
+      "term": "البَحْت",
+      "definition": "الخالص الصافي الذي لا يُخالطه شيء.",
+      "unitId": "p1-u3",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-08",
+      "part": "part1",
+      "term": "مُلْهِمَة",
+      "definition": "ذات قدرة موفّقة على استحضار الأفكار.",
+      "unitId": "p1-u3",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-09",
+      "part": "part1",
+      "term": "بَنَانُكَ",
+      "definition": "البنان: أطراف الأصابع.",
+      "unitId": "p1-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-10",
+      "part": "part1",
+      "term": "كَدَّ",
+      "definition": "اشتدّ ونَشِطَ وجدّ في العمل.",
+      "unitId": "p1-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-11",
+      "part": "part1",
+      "term": "العِرْق",
+      "definition": "الأصل في كل شيء.",
+      "unitId": "p1-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-12",
+      "part": "part1",
+      "term": "الفِطْرَة",
+      "definition": "الصفة الأولى السليمة التي يكون عليها الإنسان في أول حياته.",
+      "unitId": "p1-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-13",
+      "part": "part1",
+      "term": "تَدْلَهِمُّ",
+      "definition": "تشتدّ ظلاماً أو تزداد ظلمةً.",
+      "unitId": "p1-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-14",
+      "part": "part1",
+      "term": "الخُطُوب",
+      "definition": "جمع خَطْب، وهو الأمر الشديد كبيراً كان أم صغيراً.",
+      "unitId": "p1-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-15",
+      "part": "part1",
+      "term": "مَجْبُولٌ",
+      "definition": "مَطْبوعٌ ومفطورٌ على الشيء.",
+      "unitId": "p1-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-16",
+      "part": "part1",
+      "term": "النَّحْر",
+      "definition": "أعلى الصدر وموضع القلادة.",
+      "unitId": "p1-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-17",
+      "part": "part1",
+      "term": "الجِيد",
+      "definition": "العُنُق.",
+      "unitId": "p1-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-18",
+      "part": "part1",
+      "term": "هَلِعَة",
+      "definition": "خائفة جَزِعة مضطربة.",
+      "unitId": "p1-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-19",
+      "part": "part1",
+      "term": "تُؤَدَة",
+      "definition": "التأنّي والرّزانة والتمهّل.",
+      "unitId": "p1-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-20",
+      "part": "part1",
+      "term": "مُغْتَبِطَة",
+      "definition": "فَرِحة مسرورة سعيدة.",
+      "unitId": "p1-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-21",
+      "part": "part1",
+      "term": "التَّنَاحُر",
+      "definition": "المخاصمة والاقتتال والتنازع.",
+      "unitId": "p1-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-22",
+      "part": "part1",
+      "term": "المَوَدَّة",
+      "definition": "المحبة الخالصة والألفة.",
+      "unitId": "p1-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-23",
+      "part": "part1",
+      "term": "الرَّغِيدَة",
+      "definition": "الحياة الطيبة الواسعة السعيدة.",
+      "unitId": "p1-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-24",
+      "part": "part1",
+      "term": "تَعْنُو",
+      "definition": "تَخضع وتذلّ.",
+      "unitId": "p1-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-25",
+      "part": "part1",
+      "term": "تَسْتَمِدُّ",
+      "definition": "تأخذ وتستقي العون والهدي.",
+      "unitId": "p1-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-26",
+      "part": "part1",
+      "term": "النُّجُب",
+      "definition": "جمع نَجيب، وهو الكريم الفاضل المحمود الفعال.",
+      "unitId": "p1-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-27",
+      "part": "part1",
+      "term": "بَلِيَّة",
+      "definition": "البلاء والمصيبة الشديدة.",
+      "unitId": "p1-u9",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-28",
+      "part": "part1",
+      "term": "ذُو التَّمَائِم",
+      "definition": "الطفل الصغير الذي تُعلّق بعنقه التميمة لدفع الحسد.",
+      "unitId": "p1-u9",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-29",
+      "part": "part1",
+      "term": "كَيْوَان",
+      "definition": "كوكب زُحَل في السماء، يُضرب به المثل في العلوّ والرفعة.",
+      "unitId": "p1-u10",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-30",
+      "part": "part1",
+      "term": "رَيْب الزَّمَان",
+      "definition": "حوادث الزمان وصروفه ونوائبه.",
+      "unitId": "p1-u10",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-31",
+      "part": "part1",
+      "term": "يُؤَاخِيه",
+      "definition": "يجعله أخاً وملازماً له.",
+      "unitId": "p1-u10",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-32",
+      "part": "part2",
+      "term": "تَعَاقَبَ",
+      "definition": "تناوب وجاء بعضه إثر بعض.",
+      "unitId": "p2-u1",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-33",
+      "part": "part2",
+      "term": "تُؤَمِّنُ",
+      "definition": "توفّر وتكفل.",
+      "unitId": "p2-u1",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-34",
+      "part": "part2",
+      "term": "النُّجُوم السَّيَّارَة",
+      "definition": "الكواكب السابحة في مداراتها.",
+      "unitId": "p2-u1",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-35",
+      "part": "part2",
+      "term": "شِيمَة",
+      "definition": "خُلُق وطبيعة وسجيّة.",
+      "unitId": "p2-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-36",
+      "part": "part2",
+      "term": "كَمَنَ",
+      "definition": "نصب كميناً واستتر.",
+      "unitId": "p2-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-37",
+      "part": "part2",
+      "term": "عَلِقْنَ",
+      "definition": "صِرن عالقاتٍ في الشَّرَك.",
+      "unitId": "p2-u2",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-38",
+      "part": "part2",
+      "term": "الرَّمَض",
+      "definition": "القيظ وشدة الحرّ ووقع الشمس على الرمل والحجارة.",
+      "unitId": "p2-u3",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-39",
+      "part": "part2",
+      "term": "الإِهْلال",
+      "definition": "ظهور الهلال في أول الشهر القمري.",
+      "unitId": "p2-u3",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-40",
+      "part": "part2",
+      "term": "أَجْنَاد",
+      "definition": "جمع جُنْد وهم العسكر والحماة.",
+      "unitId": "p2-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-41",
+      "part": "part2",
+      "term": "تُنَافِحُ",
+      "definition": "تُدافع وتذود.",
+      "unitId": "p2-u4",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-42",
+      "part": "part2",
+      "term": "النَّزْع",
+      "definition": "احتضار المريض واشتداد ألمه.",
+      "unitId": "p2-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-43",
+      "part": "part2",
+      "term": "رُزِئْتُ",
+      "definition": "أُصِبتُ بمصيبة فادحة.",
+      "unitId": "p2-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-44",
+      "part": "part2",
+      "term": "سِيَّان",
+      "definition": "متماثلان متساويان.",
+      "unitId": "p2-u5",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-45",
+      "part": "part2",
+      "term": "الشَّرَف",
+      "definition": "المنزلة الرفيعة والمجد.",
+      "unitId": "p2-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-46",
+      "part": "part2",
+      "term": "الأَجَل",
+      "definition": "مدّة الشيء ووقته المحدّد.",
+      "unitId": "p2-u6",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-47",
+      "part": "part2",
+      "term": "قِبَاب",
+      "definition": "جمع قُبّة، وهو البناء المقوّس المستدير.",
+      "unitId": "p2-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-48",
+      "part": "part2",
+      "term": "الهَزَج",
+      "definition": "كل صوت فيه ترنّم خفيف مطرب.",
+      "unitId": "p2-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-49",
+      "part": "part2",
+      "term": "مَنَاقِب",
+      "definition": "ما يُعرف به الإنسان من الخصال والأخلاق الحميدة.",
+      "unitId": "p2-u7",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-50",
+      "part": "part2",
+      "term": "مَتْبُول",
+      "definition": "الذي أضناه الحبّ أو أُخذ الثأر منه.",
+      "unitId": "p2-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-51",
+      "part": "part2",
+      "term": "البَيْدَاء",
+      "definition": "الصحراء الواسعة.",
+      "unitId": "p2-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-52",
+      "part": "part2",
+      "term": "الوَاشِي",
+      "definition": "النّمّام الساعي بالفساد بين الناس.",
+      "unitId": "p2-u8",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-53",
+      "part": "part2",
+      "term": "تَضَمَّخَ",
+      "definition": "تلطّخ وتطيّب بالطيب كثيراً.",
+      "unitId": "p2-u9",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-54",
+      "part": "part2",
+      "term": "السَّحِيق",
+      "definition": "البعيد جدّاً.",
+      "unitId": "p2-u9",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-55",
+      "part": "part2",
+      "term": "الخَفَر",
+      "definition": "شدّة الحياء.",
+      "unitId": "p2-u9",
+      "topicId": "t2"
+    },
+    {
+      "id": "term-56",
+      "part": "part2",
+      "term": "السَّمَر",
+      "definition": "الحديث بالليل.",
+      "unitId": "p2-u9",
+      "topicId": "t2"
+    }
+  ]
+}
