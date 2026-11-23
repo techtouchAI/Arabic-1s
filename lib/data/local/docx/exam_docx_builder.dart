@@ -10,7 +10,8 @@
 ///    four sides (`printableWidthDxa = 10466`), `<w:bidi/>` and `<w:rtlGutter/>`.
 /// 2. Borderless 3-column `<w:bidiVisual/>` header table (`3316 + 3834 + 3316`)
 ///    with optional student-name / exam-number bar and bottom rule (`sz="12"`).
-/// 3. Centered bold single-underlined section banners (`الانشاء : ( 30 درجة )`,
+/// 3. Right-aligned section titles with flush-left marks, as in the sources;
+///    single-underlined section labels (`الانشاء : ( 30 درجة )`,
 ///    `قواعد اللغة العربية : ( 35 درجة )`, `الاملاء : ( 15 درجة )`).
 /// 4. Flush-left tab stop (`<w:tab w:val="left" w:pos="10466"/>`) so every
 ///    branch/question degree badge aligns cleanly at the far left margin.
@@ -25,6 +26,7 @@ import 'dart:typed_data';
 
 import '../../../core/utils/arabic_text.dart';
 import '../../../domain/models/exam_paper.dart';
+import '../../../domain/services/exam_layout_plan.dart';
 import 'stored_zip_writer.dart';
 
 class ExamDocxBuilder {
@@ -105,59 +107,13 @@ class ExamDocxBuilder {
       );
     }
 
-    // 3. Section 1 — الانشاء
-    buf.write(
-      _sectionHeadingParagraph(
-        'الانشاء : ${_degreeBadge(paper.composition.degree, paper)}',
-        font,
-        headingHalfPt,
-      ),
-    );
-    if (paper.composition.prompt.trim().isNotEmpty) {
-      buf.write(
-        _richParagraph(
-          paper.composition.prompt.trim(),
-          font: font,
-          sizeHalfPt: bodyHalfPt,
-          bold: true,
-        ),
-      );
+    // One canonical ordering/spacing plan for both renderers.
+    for (final paragraph in ExamLayoutPlan.build(paper)) {
+      buf.write(_layoutParagraph(paragraph, paper, font,
+          paragraph.kind == ExamParagraphKind.heading
+              ? headingHalfPt
+              : bodyHalfPt));
     }
-    for (var i = 0; i < paper.composition.topics.length; i++) {
-      final topic = paper.composition.topics[i].trim();
-      if (topic.isEmpty) {
-        continue;
-      }
-      final numPrefix = '${_formatDigits(i + 1, paper)}- ';
-      buf.write(
-        _richParagraph(
-          '$numPrefix$topic',
-          font: font,
-          sizeHalfPt: bodyHalfPt,
-          bold: true,
-        ),
-      );
-    }
-
-    // 4. Section 2 — قواعد اللغة العربية
-    buf.write(
-      _sectionHeadingParagraph(
-        'قواعد اللغة العربية : ${_degreeBadge(paper.grammar.degree, paper)}',
-        font,
-        headingHalfPt,
-      ),
-    );
-    _writeQuestionSection(buf, paper.grammar, paper, font, bodyHalfPt);
-
-    // 5. Section 3 — الاملاء
-    buf.write(
-      _sectionHeadingParagraph(
-        'الاملاء : ${_degreeBadge(paper.orthography.degree, paper)}',
-        font,
-        headingHalfPt,
-      ),
-    );
-    _writeQuestionSection(buf, paper.orthography, paper, font, bodyHalfPt);
 
     // 6. Closing wish
     if (paper.header.closingWish.trim().isNotEmpty) {
@@ -267,139 +223,27 @@ class ExamDocxBuilder {
         '</w:tbl>';
   }
 
-  static void _writeQuestionSection(
-    StringBuffer buf,
-    ExamQuestionSection section,
+  static String _layoutParagraph(
+    ExamLayoutParagraph paragraph,
     ArabicExamPaper paper,
     String font,
-    int bodyHalfPt,
-  ) {
-    for (final q in section.questions) {
-      final qNum = _formatDigits(q.number, paper);
-      for (var bIndex = 0; bIndex < q.branches.length; bIndex++) {
-        final br = q.branches[bIndex];
-        final String prefix;
-        if (bIndex == 0) {
-          prefix = br.branch.trim().isEmpty
-              ? 'س$qNum/ '
-              : 'س$qNum/ ${br.branch.trim()}- ';
-        } else {
-          prefix = br.branch.trim().isEmpty ? '' : '${br.branch.trim()}- ';
-        }
-        final promptText = '$prefix${br.prompt.trim()}';
-        final badgeText = _degreeBadge(br.degree, paper);
-
-        // Prompt line + flush-left degree badge via tab stop at 10466 dxa
-        buf.write(
-          _promptWithLeftBadgeParagraph(
-            promptText,
-            badgeText,
-            font: font,
-            sizeHalfPt: bodyHalfPt,
-          ),
-        );
-
-        final cleanItems = br.items
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList(growable: false);
-        if (cleanItems.isEmpty) {
-          continue;
-        }
-
-        switch (br.itemLayout) {
-          case ExamItemLayout.inline:
-            final inlineJoined = <String>[];
-            for (var idx = 0; idx < cleanItems.length; idx++) {
-              final n = _formatDigits(idx + 1, paper);
-              inlineJoined.add('$n- ${cleanItems[idx]}');
-            }
-            buf.write(
-              _richParagraph(
-                inlineJoined.join('    '),
-                font: font,
-                sizeHalfPt: bodyHalfPt,
-                bold: true,
-                indentRightDxa: 240,
-              ),
-            );
-          case ExamItemLayout.prose:
-            buf.write(
-              _richParagraph(
-                cleanItems.join(' '),
-                font: font,
-                sizeHalfPt: bodyHalfPt,
-                bold: true,
-                indentRightDxa: 240,
-              ),
-            );
-          case ExamItemLayout.vertical:
-            for (var idx = 0; idx < cleanItems.length; idx++) {
-              final n = _formatDigits(idx + 1, paper);
-              buf.write(
-                _richParagraph(
-                  '$n- ${cleanItems[idx]}',
-                  font: font,
-                  sizeHalfPt: bodyHalfPt,
-                  bold: true,
-                  indentRightDxa: 240,
-                ),
-              );
-            }
-        }
-      }
-    }
-  }
-
-  static String _sectionHeadingParagraph(
-    String text,
-    String font,
     int halfPt,
-  ) =>
-      '<w:p><w:pPr>'
-      '<w:bidi/>'
-      '<w:spacing w:before="110" w:after="60" w:line="260" w:lineRule="auto"/>'
-      '<w:jc w:val="center"/>'
-      '</w:pPr>'
-      '${_run(text, font, halfPt, bold: true, underline: true)}'
-      '</w:p>';
-
-  static String _promptWithLeftBadgeParagraph(
-    String promptText,
-    String badgeText, {
-    required String font,
-    required int sizeHalfPt,
-  }) {
-    final runs = _richRuns(promptText, font: font, sizeHalfPt: sizeHalfPt, bold: true);
+  ) {
+    final before = (paragraph.spaceBeforePt * 20).round();
+    final line = (paper.typography.spacing.lineHeight * 240).round();
+    final indent = (paragraph.indentPt * 20).round();
+    final hasBadge = paragraph.degree != null;
     return '<w:p><w:pPr>'
+        '${paragraph.keepWithNext ? '<w:keepNext/>' : ''}'
+        '<w:keepLines/>'
+        '${hasBadge ? '<w:tabs><w:tab w:val="left" w:pos="$printableWidthDxa"/></w:tabs>' : ''}'
         '<w:bidi/>'
-        '<w:tabs><w:tab w:val="left" w:pos="$printableWidthDxa"/></w:tabs>'
-        '<w:spacing w:before="70" w:after="36" w:line="260" w:lineRule="auto"/>'
-        '<w:jc w:val="both"/>'
+        '<w:spacing w:before="$before" w:after="0" w:line="$line" w:lineRule="auto"/>'
+        '${indent > 0 ? '<w:ind w:right="$indent"/>' : ''}'
+        '<w:jc w:val="right"/>'
         '</w:pPr>'
-        '$runs'
-        '<w:r>${_rPr(font, sizeHalfPt, bold: true)}<w:tab/></w:r>'
-        '${_run(badgeText, font, sizeHalfPt, bold: true)}'
-        '</w:p>';
-  }
-
-  static String _richParagraph(
-    String text, {
-    required String font,
-    required int sizeHalfPt,
-    bool bold = true,
-    int indentRightDxa = 0,
-  }) {
-    final ind = indentRightDxa > 0
-        ? '<w:ind w:right="$indentRightDxa"/>'
-        : '';
-    return '<w:p><w:pPr>'
-        '<w:bidi/>'
-        '$ind'
-        '<w:spacing w:before="20" w:after="36" w:line="260" w:lineRule="auto"/>'
-        '<w:jc w:val="both"/>'
-        '</w:pPr>'
-        '${_richRuns(text, font: font, sizeHalfPt: sizeHalfPt, bold: bold)}'
+        '${_richRuns(paragraph.text, font: font, sizeHalfPt: halfPt)}'
+        '${hasBadge ? '<w:r>${_rPr(font, halfPt)}<w:tab/></w:r>${_run(_degreeBadge(paragraph.degree!, paper), font, halfPt)}' : ''}'
         '</w:p>';
   }
 
@@ -499,7 +343,7 @@ class ExamDocxBuilder {
   }) =>
       '<w:r>'
       '${_rPr(escapedFont, halfPt, bold: bold, underline: underline)}'
-      '<w:t xml:space="preserve">${_esc(text)}</w:t>'
+      '${text.split('\n').map((line) => '<w:t xml:space="preserve">${_esc(line)}</w:t>').join('<w:br/>')}'
       '</w:r>';
 
   static String _esc(String raw) => raw

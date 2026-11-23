@@ -23,3 +23,6 @@ __pycache__/
 
 # Diagnostics written by the layout tests
 layout-report.txt
+
+# Local Python tool environment
+.venv/

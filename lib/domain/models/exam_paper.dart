@@ -282,30 +282,65 @@ class ExamQuestionSection {
       );
 }
 
+/// Physical spacing in points; Word uses twentieths of a point (dxa).
+/// Auto line spacing is a multiplier, avoiding clipped Arabic diacritics.
+class ExamSpacing {
+  const ExamSpacing({
+    this.lineHeight = 1.0,
+    this.itemGapPt = 0,
+    this.branchGapPt = 3.5,
+    this.questionGapPt = 6,
+  })  : assert(lineHeight >= 1 && lineHeight <= 2),
+        assert(itemGapPt >= 0 && itemGapPt <= 12),
+        assert(branchGapPt >= 0 && branchGapPt <= 18),
+        assert(questionGapPt >= 0 && questionGapPt <= 24);
+
+  final double lineHeight;
+  final double itemGapPt;
+  final double branchGapPt;
+  final double questionGapPt;
+
+  ExamSpacing copyWith({
+    double? lineHeight,
+    double? itemGapPt,
+    double? branchGapPt,
+    double? questionGapPt,
+  }) => ExamSpacing(
+    lineHeight: lineHeight ?? this.lineHeight,
+    itemGapPt: itemGapPt ?? this.itemGapPt,
+    branchGapPt: branchGapPt ?? this.branchGapPt,
+    questionGapPt: questionGapPt ?? this.questionGapPt,
+  );
+}
+
 class ExamTypography {
   const ExamTypography({
     this.font = ExamFontChoice.arial,
     this.bodySizePt = 14,
     this.headingSizePt = 15,
     this.useWesternDigits = true,
+    this.spacing = const ExamSpacing(),
   });
 
   final ExamFontChoice font;
   final int bodySizePt;
   final int headingSizePt;
   final bool useWesternDigits;
+  final ExamSpacing spacing;
 
   ExamTypography copyWith({
     ExamFontChoice? font,
     int? bodySizePt,
     int? headingSizePt,
     bool? useWesternDigits,
+    ExamSpacing? spacing,
   }) =>
       ExamTypography(
         font: font ?? this.font,
         bodySizePt: bodySizePt ?? this.bodySizePt,
         headingSizePt: headingSizePt ?? this.headingSizePt,
         useWesternDigits: useWesternDigits ?? this.useWesternDigits,
+        spacing: spacing ?? this.spacing,
       );
 }
 
@@ -453,6 +488,7 @@ class OrthographyBankItem {
 class OfficialExamTemplate {
   const OfficialExamTemplate({
     required this.id,
+    this.part = 'both',
     required this.title,
     required this.examTitle,
     required this.round,
@@ -472,6 +508,7 @@ class OfficialExamTemplate {
         (json['roleLabel'] as String?) ?? (json['round'] as String?) ?? '';
     return OfficialExamTemplate(
       id: json['id'] as String,
+      part: (json['part'] as String?) ?? 'both',
       title: label,
       examTitle: examTitle,
       round: roleLabel.isNotEmpty ? roleLabel : label,
@@ -497,6 +534,7 @@ class OfficialExamTemplate {
   }
 
   final String id;
+  final String part;
   final String title;
   final String examTitle;
   final String round;

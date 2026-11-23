@@ -29,6 +29,8 @@ jobs:
         run: |
           python3 tools/build_content.py
           git diff --exit-code assets/
+      - name: Word source fidelity regression tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Verify generated content, SVGs, and official exam templates
         run: |
           set +e
