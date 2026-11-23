@@ -319,11 +319,14 @@ void main() {
       find.byKey(const ValueKey<String>('preview-fullscreen-viewer')),
       findsOneWidget,
     );
-    // `byTooltip` uniquely targets the fullscreen AppBar close; a bare
+    // `byTooltip` uniquely targets the fullscreen AppBar close (the
+    // fullscreenDialog route's implied CloseButton); a bare
     // `find.byIcon(Icons.close)` is ambiguous because the composer page
     // behind the route also renders one.
     await tester.tap(find.byTooltip('إغلاق'));
-    await _settle(tester);
+    // The route-exit transition outlives the short `_settle` pumps; drain
+    // every animation frame before asserting the fullscreen view is gone.
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey<String>('preview-fullscreen-viewer')),
       findsNothing,
@@ -415,6 +418,12 @@ void main() {
               (widget.key! as ValueKey<String>).value.startsWith('bank-item-'),
         );
     expect(bankTiles(), findsWidgets);
+
+    // The sheet renders all results inline inside its scrollable; the tile
+    // can sit below the visible extent, so reveal it before tapping.
+    await tester.ensureVisible(bankTiles().first);
+    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // Pick the first result: the sheet closes and the branch gains a point.
     await tester.tap(bankTiles().first);
