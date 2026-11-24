@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../domain/models/exam_paper.dart';
 import '../../domain/models/library.dart';
 import '../../domain/models/progress.dart';
+import '../../domain/services/exam_bank_picker.dart';
 
 /// Mutable controller for composing, customizing, and exporting official
 /// First Intermediate Arabic Word (`.docx`) exam papers.
@@ -309,13 +310,7 @@ class ExamComposerController extends ChangeNotifier {
         ? base
         : candidates[_rng.nextInt(candidates.length)];
     final prompt = selected.prompt;
-    final style = prompt.contains('اعرب') || prompt.contains('أعرب')
-        ? 'irab'
-        : prompt.contains('اختر')
-            ? 'mcq'
-            : prompt.contains('الفرق')
-                ? 'difference'
-                : null;
+    final style = ExamBankPicker.inferGrammarStyle(prompt);
     // Never silently fill a parsing/MCQ slot with an unrelated question type.
     final matching = bank.where((item) => item.style == style).toList()
       ..shuffle(_rng);
@@ -464,5 +459,141 @@ class ExamComposerController extends ChangeNotifier {
         ? _paper.copyWith(grammar: nextSection)
         : _paper.copyWith(orthography: nextSection);
     notifyListeners();
+  }
+
+  /// Replaces the content of one branch with bank content, keeping its
+  /// branch letter. The teacher stays free to edit prompt, degree, items
+  /// and layout afterwards.
+  void replaceBranchFromBank({
+    required bool isGrammar,
+    required int questionIndex,
+    required int branchIndex,
+    required String prompt,
+    required int degree,
+    required List<String> items,
+    required ExamItemLayout itemLayout,
+  }) {
+    final section = isGrammar ? _paper.grammar : _paper.orthography;
+    if (questionIndex < 0 ||
+        questionIndex >= section.questions.length) {
+      return;
+    }
+    final question = section.questions[questionIndex];
+    if (branchIndex < 0 || branchIndex >= question.branches.length) {
+      return;
+    }
+    final current = question.branches[branchIndex];
+    updateBranch(
+      isGrammar: isGrammar,
+      questionIndex: questionIndex,
+      branchIndex: branchIndex,
+      updated: current.copyWith(
+        prompt: prompt,
+        degree: degree,
+        items: List<String>.from(items),
+        itemLayout: itemLayout,
+      ),
+    );
+  }
+
+  /// Appends a new branch built from bank content to the chosen question.
+  /// The branch letter is assigned automatically (أ، ب، ج …).
+  void addBranchFromBank({
+    required bool isGrammar,
+    required int questionIndex,
+    required String prompt,
+    required int degree,
+    required List<String> items,
+    required ExamItemLayout itemLayout,
+  }) {
+    final section = isGrammar ? _paper.grammar : _paper.orthography;
+    if (questionIndex < 0 ||
+        questionIndex >= section.questions.length) {
+      return;
+    }
+    final questions = List<ExamQuestionBlock>.from(section.questions);
+    final q = questions[questionIndex];
+    const letters = <String>['أ', 'ب', 'ج', 'د'];
+    final branches = List<ExamBranch>.from(q.branches);
+    if (branches.length == 1 && branches.first.branch.isEmpty) {
+      branches[0] = branches[0].copyWith(branch: 'أ');
+    }
+    final nextLetter =
+        branches.length < letters.length ? letters[branches.length] : 'هـ';
+    branches.add(
+      ExamBranch(
+        branch: nextLetter,
+        prompt: prompt,
+        degree: degree,
+        items: List<String>.from(items),
+        itemLayout: itemLayout,
+      ),
+    );
+    questions[questionIndex] = q.copyWith(branches: branches);
+    final nextSection = section.copyWith(questions: questions);
+    _paper = isGrammar
+        ? _paper.copyWith(grammar: nextSection)
+        : _paper.copyWith(orthography: nextSection);
+    notifyListeners();
+  }
+
+  /// Appends a new question block holding a single branch built from bank
+  /// content. Used when the teacher wants a whole new question, not just
+  /// another branch of an existing one.
+  void addQuestionFromBank({
+    required bool isGrammar,
+    required String prompt,
+    required int degree,
+    required List<String> items,
+    required ExamItemLayout itemLayout,
+  }) {
+    final section = isGrammar ? _paper.grammar : _paper.orthography;
+    final questions = List<ExamQuestionBlock>.from(section.questions);
+    questions.add(
+      ExamQuestionBlock(
+        number: questions.length + 1,
+        branches: <ExamBranch>[
+          ExamBranch(
+            branch: '',
+            prompt: prompt,
+            degree: degree,
+            items: List<String>.from(items),
+            itemLayout: itemLayout,
+          ),
+        ],
+      ),
+    );
+    final nextSection = section.copyWith(questions: questions);
+    _paper = isGrammar
+        ? _paper.copyWith(grammar: nextSection)
+        : _paper.copyWith(orthography: nextSection);
+    notifyListeners();
+  }
+
+  /// Appends one composition topic from the bank (or typed by hand).
+  void addCompositionTopic(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    updateComposition(
+      _paper.composition.copyWith(
+        topics: <String>[..._paper.composition.topics, trimmed],
+      ),
+    );
+  }
+
+  /// Replaces the composition topic at [index] with bank content.
+  void replaceCompositionTopic(int index, String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    final topics = List<String>.from(_paper.composition.topics);
+    if (index < 0 || index >= topics.length) {
+      return;
+    }
+    topics[index] = trimmed;
+    updateComposition(_paper.composition.copyWith(topics: topics));
   }
 }

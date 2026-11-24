@@ -8,6 +8,8 @@ import '../../core/widgets/section_header.dart';
 import '../../data/local/docx/exam_docx_builder.dart';
 import '../../data/local/exam_document_exporter.dart';
 import '../../domain/models/exam_paper.dart';
+import '../../domain/models/library.dart';
+import '../../domain/services/exam_bank_picker.dart';
 import '../../domain/services/exam_layout_plan.dart';
 import '../state/app_state.dart';
 import '../state/exam_autosaver.dart';
@@ -449,7 +451,7 @@ class _ComposerEditorView extends StatelessWidget {
                 trailing: TextButton.icon(
                   onPressed: () => _pickOrthographyBranch(context, controller),
                   icon: const Icon(Icons.library_add_outlined, size: 18),
-                  label: const Text('استبدال من بنك الإملاء'),
+                  label: const Text('من بنك الإملاء'),
                 ),
               ),
               for (var qi = 0; qi < paper.orthography.questions.length; qi++)
@@ -466,114 +468,94 @@ class _ComposerEditorView extends StatelessWidget {
     );
   }
 
-  void _pickCompositionFromBank(
+  Future<void> _pickCompositionFromBank(
     BuildContext context,
     ExamComposerController ctrl,
-  ) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext ctx) {
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            0,
-            AppSpacing.lg,
-            AppSpacing.xl,
-          ),
-          children: <Widget>[
-            Text(
-              'اختر موضوعاً لإضافته إلى قسم الإنشاء',
-              style: Theme.of(ctx).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            for (final item in ctrl.examBank.compositionTopics) ...<Widget>[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(item.text),
-                subtitle: Text(
-                  item.part == 'part1' ? 'الجزء الأول' : 'الجزء الثاني',
-                ),
-                trailing: const Icon(Icons.add_circle_outline),
-                onTap: () {
-                  final nextTopics = <String>[
-                    ...ctrl.paper.composition.topics,
-                    item.text,
-                  ];
-                  ctrl.updateComposition(
-                    ctrl.paper.composition.copyWith(topics: nextTopics),
-                  );
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              const Divider(height: 1),
-            ],
-          ],
-        );
-      },
+  ) async {
+    final outcome = await _showBankPicker(
+      context,
+      ctrl,
+      source: _BankSource.composition,
+      title: 'اختر موضوعاً لإضافته إلى قسم الإنشاء',
+      modes: const <BankApplyMode>[BankApplyMode.addTopic],
     );
+    if (outcome == null) {
+      return;
+    }
+    ctrl.addCompositionTopic(outcome.selection.text);
   }
 
-  void _pickOrthographyBranch(
+  Future<void> _pickOrthographyBranch(
     BuildContext context,
     ExamComposerController ctrl,
-  ) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext ctx) {
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            0,
-            AppSpacing.lg,
-            AppSpacing.xl,
-          ),
-          children: <Widget>[
-            Text(
-              'اختر سؤال إملاء لإضافته كفرع جديد',
-              style: Theme.of(ctx).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            for (final item in ctrl.examBank.orthographyItems) ...<Widget>[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(item.prompt),
-                subtitle: Text(
-                  item.items.isEmpty
-                      ? 'سؤال تعريفي / تمثيلي'
-                      : item.items.join(' • '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.add_circle_outline),
-                onTap: () {
-                  ctrl.addBranchToQuestion(isGrammar: false, questionIndex: 0);
-                  final lastIdx =
-                      ctrl.paper.orthography.questions[0].branches.length - 1;
-                  final currentBranch =
-                      ctrl.paper.orthography.questions[0].branches[lastIdx];
-                  ctrl.updateBranch(
-                    isGrammar: false,
-                    questionIndex: 0,
-                    branchIndex: lastIdx,
-                    updated: currentBranch.copyWith(
-                      prompt: item.prompt,
-                      degree: item.defaultDegree,
-                      items: item.items,
-                      itemLayout: item.itemLayout,
-                    ),
-                  );
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              const Divider(height: 1),
-            ],
-          ],
-        );
-      },
+  ) async {
+    final outcome = await _showBankPicker(
+      context,
+      ctrl,
+      source: _BankSource.orthography,
+      title: 'اختر سؤال إملاء من البنك',
+      modes: const <BankApplyMode>[
+        BankApplyMode.addBranch,
+        BankApplyMode.addQuestion,
+      ],
+      questionCount: ctrl.paper.orthography.questions.length,
     );
+    if (outcome == null) {
+      return;
+    }
+    final sel = outcome.selection;
+    if (outcome.mode == BankApplyMode.addQuestion) {
+      ctrl.addQuestionFromBank(
+        isGrammar: false,
+        prompt: sel.prompt,
+        degree: sel.degree,
+        items: sel.items,
+        itemLayout: sel.layout,
+      );
+    } else {
+      ctrl.addBranchFromBank(
+        isGrammar: false,
+        questionIndex: outcome.targetQuestionIndex,
+        prompt: sel.prompt,
+        degree: sel.degree,
+        items: sel.items,
+        itemLayout: sel.layout,
+      );
+    }
   }
+}
+
+/// Which bank a picker sheet browses.
+enum _BankSource { grammar, orthography, composition, unitQuestions }
+
+/// Opens the unified, searchable bank picker and returns the teacher's
+/// free choice (item + apply mode + target question).
+Future<BankPickOutcome?> _showBankPicker(
+  BuildContext context,
+  ExamComposerController ctrl, {
+  required _BankSource source,
+  required String title,
+  required List<BankApplyMode> modes,
+  String? initialStyle,
+  int questionCount = 0,
+  bool allowUnitQuestions = false,
+}) {
+  final library = AppScope.of(context).library;
+  return showModalBottomSheet<BankPickOutcome>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (BuildContext ctx) => _BankPickerSheet(
+      controller: ctrl,
+      library: library,
+      source: source,
+      title: title,
+      modes: modes,
+      initialStyle: initialStyle,
+      questionCount: questionCount,
+      allowUnitQuestions: allowUnitQuestions,
+    ),
+  );
 }
 
 class _HeaderAndTypographyEditor extends StatelessWidget {
@@ -852,6 +834,22 @@ class _CompositionEditor extends StatelessWidget {
 
   final ExamComposerController controller;
 
+  /// Each composition topic owns its bank: replace this single topic with
+  /// any bank topic, freely chosen and filtered by part / unit / search.
+  Future<void> _replaceTopicFromBank(BuildContext context, int index) async {
+    final outcome = await _showBankPicker(
+      context,
+      controller,
+      source: _BankSource.composition,
+      title: 'اختر موضوعاً لاستبدال الموضوع (${toArabicDigits(index + 1)})',
+      modes: const <BankApplyMode>[BankApplyMode.replaceTopic],
+    );
+    if (outcome == null) {
+      return;
+    }
+    controller.replaceCompositionTopic(index, outcome.selection.text);
+  }
+
   @override
   Widget build(BuildContext context) {
     final comp = controller.paper.composition;
@@ -906,6 +904,12 @@ class _CompositionEditor extends StatelessWidget {
                         );
                       },
                     ),
+                  ),
+                  IconButton(
+                    key: ValueKey<String>('composition-replace-$i'),
+                    tooltip: 'استبدال الموضوع من بنك الإنشاء',
+                    onPressed: () => _replaceTopicFromBank(context, i),
+                    icon: const Icon(Icons.library_books_outlined),
                   ),
                   if (comp.topics.length > 1)
                     IconButton(
@@ -1156,74 +1160,841 @@ class _BranchEditor extends StatelessWidget {
               icon: const Icon(Icons.add, size: 17),
               label: const Text('إضافة نقطة يدوية'),
             ),
-            if (isGrammar)
-              TextButton.icon(
-                onPressed: () => _pickGrammarItemFromBank(context),
-                icon: const Icon(Icons.library_books_outlined, size: 17),
-                label: const Text('إضافة من بنك القواعد'),
+            TextButton.icon(
+              key: ValueKey<String>(
+                isGrammar ? 'branch-bank-grammar' : 'branch-bank-ortho',
               ),
+              onPressed: () => _pickBranchFromBank(context),
+              icon: const Icon(Icons.library_books_outlined, size: 17),
+              label: Text(
+                isGrammar ? 'من بنك القواعد' : 'من بنك الإملاء',
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  void _pickGrammarItemFromBank(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext ctx) {
-        return ListView(
+  /// Opens this branch's own bank: every branch (grammar or orthography)
+  /// can be fed from its bank, and the teacher freely chooses whether the
+  /// pick becomes a new point, a full branch replacement, or a new branch.
+  Future<void> _pickBranchFromBank(BuildContext context) async {
+    final outcome = await _showBankPicker(
+      context,
+      controller,
+      source: isGrammar ? _BankSource.grammar : _BankSource.orthography,
+      title: isGrammar
+          ? 'اختر من بنك أسئلة القواعد لهذا الفرع'
+          : 'اختر من بنك أسئلة الإملاء لهذا الفرع',
+      modes: isGrammar
+          ? const <BankApplyMode>[
+              BankApplyMode.addAsItem,
+              BankApplyMode.replaceBranch,
+              BankApplyMode.addBranch,
+            ]
+          : const <BankApplyMode>[
+              BankApplyMode.replaceBranch,
+              BankApplyMode.addBranch,
+            ],
+      initialStyle: isGrammar
+          ? ExamBankPicker.inferGrammarStyle(branch.prompt)
+          : null,
+      allowUnitQuestions: isGrammar,
+    );
+    if (outcome == null) {
+      return;
+    }
+    final sel = outcome.selection;
+    switch (outcome.mode) {
+      case BankApplyMode.addAsItem:
+        controller.updateBranch(
+          isGrammar: isGrammar,
+          questionIndex: questionIndex,
+          branchIndex: branchIndex,
+          updated: branch.copyWith(
+            items: <String>[...branch.items, sel.text],
+          ),
+        );
+      case BankApplyMode.replaceBranch:
+        controller.replaceBranchFromBank(
+          isGrammar: isGrammar,
+          questionIndex: questionIndex,
+          branchIndex: branchIndex,
+          prompt: sel.prompt,
+          degree: sel.degree,
+          items: sel.items,
+          itemLayout: sel.layout,
+        );
+      case BankApplyMode.addBranch:
+        controller.addBranchFromBank(
+          isGrammar: isGrammar,
+          questionIndex: questionIndex,
+          prompt: sel.prompt,
+          degree: sel.degree,
+          items: sel.items,
+          itemLayout: sel.layout,
+        );
+      case BankApplyMode.addQuestion:
+      case BankApplyMode.addTopic:
+      case BankApplyMode.replaceTopic:
+        break;
+    }
+  }
+}
+
+/// Unified, searchable bank picker: every question, branch and topic owns
+/// its bank, filtered by part, grammar style, owning unit and free text.
+/// The teacher freely chooses the item and how it is applied.
+class _BankPickerSheet extends StatefulWidget {
+  const _BankPickerSheet({
+    required this.controller,
+    required this.library,
+    required this.source,
+    required this.title,
+    required this.modes,
+    this.initialStyle,
+    this.questionCount = 0,
+    this.allowUnitQuestions = false,
+  });
+
+  final ExamComposerController controller;
+  final StudyLibrary library;
+  final _BankSource source;
+  final String title;
+  final List<BankApplyMode> modes;
+  final String? initialStyle;
+  final int questionCount;
+  final bool allowUnitQuestions;
+
+  @override
+  State<_BankPickerSheet> createState() => _BankPickerSheetState();
+}
+
+class _BankPickerSheetState extends State<_BankPickerSheet> {
+  final TextEditingController _search = TextEditingController();
+  late _BankSource _source;
+  late BankApplyMode _mode;
+  String? _part;
+  String? _style;
+  String? _unitId;
+  QuestionKind? _kind;
+  int _targetQuestion = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _source = widget.source;
+    _mode = widget.modes.first;
+    _style = widget.initialStyle;
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  static String _modeLabel(BankApplyMode mode) {
+    switch (mode) {
+      case BankApplyMode.addAsItem:
+        return 'إضافة كنقطة';
+      case BankApplyMode.replaceBranch:
+        return 'استبدال الفرع';
+      case BankApplyMode.addBranch:
+        return 'فرع جديد';
+      case BankApplyMode.addQuestion:
+        return 'سؤال جديد';
+      case BankApplyMode.addTopic:
+        return 'إضافة موضوع';
+      case BankApplyMode.replaceTopic:
+        return 'استبدال الموضوع';
+    }
+  }
+
+  void _pick(BankSelection selection) {
+    Navigator.of(context).pop(
+      BankPickOutcome(
+        selection: selection,
+        mode: _mode,
+        targetQuestionIndex: _targetQuestion,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bank = widget.controller.examBank;
+    final showSourceSwitch =
+        widget.allowUnitQuestions && widget.source == _BankSource.grammar;
+    final showStyle = _source == _BankSource.grammar;
+    final showKind = _source == _BankSource.unitQuestions;
+    final showTarget =
+        _mode == BankApplyMode.addBranch && widget.questionCount > 1;
+    final units = widget.library.units.toList(growable: false)
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.88,
+      maxChildSize: 0.95,
+      builder: (BuildContext context, ScrollController scroll) {
+        return Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
             0,
             AppSpacing.lg,
-            AppSpacing.xl,
+            AppSpacing.md,
           ),
-          children: <Widget>[
-            Text(
-              'اختر فقرة من بنك أسئلة القواعد الرسمي',
-              style: Theme.of(ctx).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            for (final gi in controller.examBank.grammarItems) ...<Widget>[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: UnderlineRichText(gi.text),
-                subtitle: Text(
-                  '${gi.part == 'part1' ? 'الجزء الأول' : 'الجزء الثاني'} • ${gi.promptGroup}',
+          child: SingleChildScrollView(
+            controller: scroll,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(widget.title, style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'ابحث وصفِّ حسب الجزء والنوع والوحدة، ثم اختر بحرية.',
+                  style: theme.textTheme.bodySmall,
                 ),
-                trailing: const Icon(Icons.add_circle_outline),
-                onTap: () {
-                  final next = <String>[...branch.items, gi.text];
-                  controller.updateBranch(
-                    isGrammar: isGrammar,
-                    questionIndex: questionIndex,
-                    branchIndex: branchIndex,
-                    updated: branch.copyWith(items: next),
-                  );
-                  Navigator.of(ctx).pop();
-                },
-              ),
-              const Divider(height: 1),
-            ],
-          ],
+                if (showSourceSwitch) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<_BankSource>(
+                    segments: const <ButtonSegment<_BankSource>>[
+                      ButtonSegment<_BankSource>(
+                        value: _BankSource.grammar,
+                        label: Text('بنك القواعد'),
+                      ),
+                      ButtonSegment<_BankSource>(
+                        value: _BankSource.unitQuestions,
+                        label: Text('أسئلة الوحدات'),
+                      ),
+                    ],
+                    selected: <_BankSource>{_source},
+                    onSelectionChanged: (Set<_BankSource> next) {
+                      if (next.isNotEmpty) {
+                        setState(() => _source = next.first);
+                      }
+                    },
+                  ),
+                ],
+                if (widget.modes.length > 1) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  SegmentedButton<BankApplyMode>(
+                    segments: <ButtonSegment<BankApplyMode>>[
+                      for (final m in widget.modes)
+                        ButtonSegment<BankApplyMode>(
+                          value: m,
+                          label: Text(_modeLabel(m)),
+                        ),
+                    ],
+                    selected: <BankApplyMode>{_mode},
+                    onSelectionChanged: (Set<BankApplyMode> next) {
+                      if (next.isNotEmpty) {
+                        setState(() => _mode = next.first);
+                      }
+                    },
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  key: const ValueKey<String>('bank-search'),
+                  controller: _search,
+                  decoration: const InputDecoration(
+                    labelText: 'بحث في البنك',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    ChoiceChip(
+                      label: const Text('كل الأجزاء'),
+                      selected: _part == null,
+                      onSelected: (_) => setState(() => _part = null),
+                    ),
+                    ChoiceChip(
+                      label: const Text('الجزء الأول'),
+                      selected: _part == 'part1',
+                      onSelected: (_) => setState(() => _part = 'part1'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('الجزء الثاني'),
+                      selected: _part == 'part2',
+                      onSelected: (_) => setState(() => _part = 'part2'),
+                    ),
+                    if (showStyle) ...<Widget>[
+                      ChoiceChip(
+                        label: const Text('كل الأنواع'),
+                        selected: _style == null,
+                        onSelected: (_) => setState(() => _style = null),
+                      ),
+                      for (final s in ExamBankPicker.grammarStyles)
+                        ChoiceChip(
+                          label: Text(ExamBankPicker.grammarStyleLabel(s)),
+                          selected: _style == s,
+                          onSelected: (_) => setState(() => _style = s),
+                        ),
+                    ],
+                    if (showKind) ...<Widget>[
+                      ChoiceChip(
+                        label: const Text('كل الأنواع'),
+                        selected: _kind == null,
+                        onSelected: (_) => setState(() => _kind = null),
+                      ),
+                      for (final k in QuestionKind.values)
+                        ChoiceChip(
+                          label: Text(ExamBankPicker.questionKindLabel(k)),
+                          selected: _kind == k,
+                          onSelected: (_) => setState(() => _kind = k),
+                        ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey<String>('bank-unit-filter'),
+                  initialValue: _unitId ?? '__all__',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الوحدة / الموضوع',
+                    isDense: true,
+                  ),
+                  items: <DropdownMenuItem<String>>[
+                    const DropdownMenuItem<String>(
+                      value: '__all__',
+                      child: Text('كل الوحدات'),
+                    ),
+                    const DropdownMenuItem<String>(
+                      value: '',
+                      child: Text('عام (بدون وحدة)'),
+                    ),
+                    for (final u in units)
+                      if (u.questions.isNotEmpty ||
+                          u.id == 'orthography-expression')
+                        DropdownMenuItem<String>(
+                          value: u.id,
+                          child: Text(u.displayTitle),
+                        ),
+                  ],
+                  onChanged: (String? v) {
+                    setState(() => _unitId = v == '__all__' ? null : v);
+                  },
+                ),
+                if (showTarget) ...<Widget>[
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        'السؤال المستهدف:',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                      for (var qi = 0; qi < widget.questionCount; qi++)
+                        ChoiceChip(
+                          label: Text('س${toArabicDigits(qi + 1)}'),
+                          selected: _targetQuestion == qi,
+                          onSelected: (_) =>
+                              setState(() => _targetQuestion = qi),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                _BankResults(
+                  bank: bank,
+                  library: widget.library,
+                  source: _source,
+                  part: _part,
+                  style: _style,
+                  unitId: _unitId,
+                  kind: _kind,
+                  query: _search.text,
+                  onPick: _pick,
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 }
 
+/// Bank results rendered inline inside the sheet's shared scrollable, so
+/// the sheet can scroll (and drag) at any extent without layout overflow.
+class _BankResults extends StatelessWidget {
+  const _BankResults({
+    required this.bank,
+    required this.library,
+    required this.source,
+    required this.part,
+    required this.style,
+    required this.unitId,
+    required this.kind,
+    required this.query,
+    required this.onPick,
+  });
+
+  final ExamBank bank;
+  final StudyLibrary library;
+  final _BankSource source;
+  final String? part;
+  final String? style;
+  final String? unitId;
+  final QuestionKind? kind;
+  final String query;
+  final ValueChanged<BankSelection> onPick;
+
+  static String _partLabel(String part) =>
+      part == 'part1' ? 'الجزء الأول' : 'الجزء الثاني';
+
+  @override
+  Widget build(BuildContext context) {
+    switch (source) {
+      case _BankSource.grammar:
+        final items = ExamBankPicker.filterGrammarItems(
+          bank,
+          part: part,
+          style: style,
+          unitId: unitId,
+          query: query,
+        );
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _grammarTile(item),
+          ],
+        );
+      case _BankSource.orthography:
+        final items = ExamBankPicker.filterOrthographyItems(
+          bank,
+          part: part,
+          unitId: unitId,
+          query: query,
+        );
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _orthographyTile(item),
+          ],
+        );
+      case _BankSource.composition:
+        final items = ExamBankPicker.filterCompositionTopics(
+          bank,
+          part: part,
+          unitId: unitId,
+          query: query,
+        );
+        return _tiles(
+          items.isEmpty,
+          <Widget>[
+            for (final item in items) _compositionTile(item),
+          ],
+        );
+      case _BankSource.unitQuestions:
+        final entries = ExamBankPicker.filterUnitQuestions(
+          library,
+          part: part,
+          unitId: unitId,
+          kind: kind,
+          query: query,
+        );
+        return _tiles(
+          entries.isEmpty,
+          <Widget>[
+            for (final entry in entries) _unitQuestionTile(entry),
+          ],
+        );
+    }
+  }
+
+  /// Empty state, or the tiles as one inline block of the sheet's column.
+  Widget _tiles(bool empty, List<Widget> tiles) {
+    if (empty) {
+      return const _BankEmptyState();
+    }
+    return Column(children: tiles);
+  }
+
+  Widget _grammarTile(GrammarBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: UnderlineRichText(item.text),
+      subtitle: Text(
+        '${_partLabel(item.part)} • '
+        '${ExamBankPicker.grammarStyleLabel(item.style)}'
+        '${unitTitle == null ? '' : ' • $unitTitle'}',
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: item.text,
+          prompt: item.text,
+          degree: item.defaultDegree,
+          title: item.promptGroup,
+        ),
+      ),
+    );
+  }
+
+  Widget _orthographyTile(OrthographyBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        item.title.isNotEmpty ? item.title : item.prompt,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${_partLabel(item.part)}'
+        '${unitTitle == null ? '' : ' • $unitTitle'}'
+        '${item.items.isEmpty ? '' : ' • ${item.items.join(' • ')}'}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: item.prompt,
+          prompt: item.prompt,
+          items: item.items,
+          degree: item.defaultDegree,
+          layout: item.itemLayout,
+          title: item.title,
+        ),
+      ),
+    );
+  }
+
+  Widget _compositionTile(CompositionBankItem item) {
+    final unitTitle = ExamBankPicker.unitTitleFor(library, item.unitId);
+    final hasTitle = item.title.trim().isNotEmpty;
+    return ListTile(
+      key: ValueKey<String>('bank-item-${item.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        hasTitle ? item.title : item.text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        hasTitle
+            ? '${_partLabel(item.part)}'
+                  '${unitTitle == null ? '' : ' • $unitTitle'}'
+                  ' • ${item.text}'
+            : '${_partLabel(item.part)}'
+                  '${unitTitle == null ? '' : ' • $unitTitle'}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(BankSelection(text: item.text, title: item.title)),
+    );
+  }
+
+  Widget _unitQuestionTile(UnitQuestionEntry entry) {
+    final q = entry.question;
+    return ListTile(
+      key: ValueKey<String>('bank-item-${q.id}'),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        q.prompt,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${entry.unit.displayTitle} • '
+        '${ExamBankPicker.questionKindLabel(q.kind)}',
+      ),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => onPick(
+        BankSelection(
+          text: ExamBankPicker.unitQuestionAsExamText(q),
+          prompt: q.prompt,
+          items: q.kind == QuestionKind.choice
+              ? q.options
+              : const <String>[],
+          layout: q.kind == QuestionKind.choice
+              ? ExamItemLayout.inline
+              : ExamItemLayout.vertical,
+          title: entry.unit.displayTitle,
+        ),
+      ),
+    );
+  }
+}
+
+class _BankEmptyState extends StatelessWidget {
+  const _BankEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          'لا توجد عناصر مطابقة — غيّر عوامل التصفية أو كلمة البحث.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
 /// Live preview sharing question order and spacing with the Word renderer.
-class _LivePaperPreview extends StatelessWidget {
+///
+/// The A4 page sits in an [InteractiveViewer]: pinch with two fingers to
+/// zoom freely, drag to pan, and use the toolbar for button zoom,
+/// fit-to-width, reset and full-screen display.
+class _LivePaperPreview extends StatefulWidget {
   const _LivePaperPreview({required this.paper});
 
   final ArabicExamPaper paper;
 
   @override
+  State<_LivePaperPreview> createState() => _LivePaperPreviewState();
+}
+
+class _LivePaperPreviewState extends State<_LivePaperPreview> {
+  static const double _minScale = 0.4;
+  static const double _maxScale = 6.0;
+  static const double _zoomStep = 1.25;
+
+  final TransformationController _controller = TransformationController();
+  double _scale = 1.0;
+  double _viewportWidth = 0;
+  double _viewportHeight = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onTransform);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTransform);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTransform() {
+    final next = _controller.value.storage[0];
+    if ((next - _scale).abs() > 0.001) {
+      setState(() => _scale = next);
+    }
+  }
+
+  void _zoomTo(double target) {
+    final clamped = target.clamp(_minScale, _maxScale);
+    final current = _controller.value.storage[0];
+    if (current <= 0 || (clamped - current).abs() < 0.001) {
+      return;
+    }
+    final cx = _viewportWidth / 2;
+    final cy = _viewportHeight / 2;
+    final k = clamped / current;
+    // Zoom about the viewport centre: T(cx, cy) · S(k) · T(−cx, −cy).
+    // `Matrix4.translate`/`scale` are deprecated in vector_math 2.2.0 (pinned
+    // by Flutter 3.35) and fail `flutter analyze --fatal-infos`;
+    // `translateByDouble`/`scaleByDouble` are their semantics-identical
+    // replacements, and `multiplied` keeps the composition statically typed.
+    final zoom = Matrix4.identity()
+      ..translateByDouble(cx, cy, 0.0, 1.0)
+      ..scaleByDouble(k, k, k, 1.0)
+      ..translateByDouble(-cx, -cy, 0.0, 1.0);
+    _controller.value = zoom.multiplied(_controller.value);
+  }
+
+  void _fitWidth() {
+    const pxPerPt = 96 / 72;
+    const pageWidth = ExamDocxBuilder.pageWidthDxa / 20 * pxPerPt;
+    if (_viewportWidth <= 0) {
+      return;
+    }
+    _controller.value =
+        Matrix4.diagonal3Values(_viewportWidth / pageWidth, _viewportWidth / pageWidth, 1);
+  }
+
+  void _openFullscreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _FullscreenPreview(paper: widget.paper),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // A physical A4 canvas at 96 dpi, with the same half-inch margins as Word.
-    // Scroll horizontally on narrow screens rather than reflowing the document.
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'معاينة تقريبية: قد تختلف الخطوط وتقسيم الصفحات في Word.',
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  IconButton(
+                    key: const ValueKey<String>('preview-zoom-out'),
+                    tooltip: 'تصغير',
+                    onPressed: () => _zoomTo(_scale / _zoomStep),
+                    icon: const Icon(Icons.zoom_out),
+                  ),
+                  Text(
+                    key: const ValueKey<String>('preview-zoom-label'),
+                    '${toArabicDigits((_scale * 100).round())}٪',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  IconButton(
+                    key: const ValueKey<String>('preview-zoom-in'),
+                    tooltip: 'تكبير',
+                    onPressed: () => _zoomTo(_scale * _zoomStep),
+                    icon: const Icon(Icons.zoom_in),
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey<String>('preview-zoom-fit'),
+                    onPressed: _fitWidth,
+                    icon: const Icon(Icons.fit_screen, size: 18),
+                    label: const Text('ملاءمة العرض'),
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey<String>('preview-zoom-reset'),
+                    onPressed: () => _controller.value = Matrix4.identity(),
+                    icon: const Icon(Icons.center_focus_strong, size: 18),
+                    label: const Text('إعادة'),
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey<String>('preview-fullscreen'),
+                    onPressed: _openFullscreen,
+                    icon: const Icon(Icons.fullscreen, size: 18),
+                    label: const Text('ملء الشاشة'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'قرّص بإصبعين للتكبير والتصغير، واسحب للتحريك.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints c) {
+              _viewportWidth = c.maxWidth;
+              _viewportHeight = c.maxHeight;
+              return InteractiveViewer(
+                key: const ValueKey<String>('preview-viewer'),
+                transformationController: _controller,
+                minScale: _minScale,
+                maxScale: _maxScale,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                constrained: false,
+                child: _ExamPageCanvas(paper: widget.paper),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Full-screen A4 preview opened from the inline preview toolbar.
+class _FullscreenPreview extends StatefulWidget {
+  const _FullscreenPreview({required this.paper});
+
+  final ArabicExamPaper paper;
+
+  @override
+  State<_FullscreenPreview> createState() => _FullscreenPreviewState();
+}
+
+class _FullscreenPreviewState extends State<_FullscreenPreview> {
+  final TransformationController _controller = TransformationController();
+  bool _fitted = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('معاينة ورقة A4'),
+        // No explicit close action: the fullscreenDialog route implies the
+        // platform-standard CloseButton (tooltip «إغلاق») in the AppBar.
+      ),
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints c) {
+          if (!_fitted && c.maxWidth > 0) {
+            _fitted = true;
+            const pxPerPt = 96 / 72;
+            const pageWidth = ExamDocxBuilder.pageWidthDxa / 20 * pxPerPt;
+            final fit = (c.maxWidth / pageWidth).clamp(0.4, 6.0);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _controller.value =
+                    Matrix4.diagonal3Values(fit, fit, 1);
+              }
+            });
+          }
+          return InteractiveViewer(
+            key: const ValueKey<String>('preview-fullscreen-viewer'),
+            transformationController: _controller,
+            minScale: 0.4,
+            maxScale: 6.0,
+            boundaryMargin: const EdgeInsets.all(double.infinity),
+            constrained: false,
+            child: _ExamPageCanvas(paper: widget.paper),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The physical A4 canvas at 96 dpi, with the same half-inch margins as Word.
+class _ExamPageCanvas extends StatelessWidget {
+  const _ExamPageCanvas({required this.paper});
+
+  final ArabicExamPaper paper;
+
+  @override
+  Widget build(BuildContext context) {
     const pxPerPt = 96 / 72;
     const pageWidth = ExamDocxBuilder.pageWidthDxa / 20 * pxPerPt;
     const pageHeight = ExamDocxBuilder.pageHeightDxa / 20 * pxPerPt;
@@ -1246,87 +2017,77 @@ class _LivePaperPreview extends StatelessWidget {
     );
     final cells = ExamHeaderLayout.build(paper);
 
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      children: <Widget>[
-        const Text('معاينة تقريبية: قد تختلف الخطوط وتقسيم الصفحات في Word.'),
-        const SizedBox(height: AppSpacing.sm),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-            child: Container(
-              width: pageWidth,
-              constraints: const BoxConstraints(minHeight: pageHeight),
-              padding: const EdgeInsets.all(margin),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.black26),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(color: Color(0x1F000000), blurRadius: 14, offset: Offset(0, 6)),
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
+        width: pageWidth,
+        constraints: const BoxConstraints(minHeight: pageHeight),
+        padding: const EdgeInsets.all(margin),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.black26),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(color: Color(0x1F000000), blurRadius: 14, offset: Offset(0, 6)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (var i = 0; i < cells.length; i++)
+                  Expanded(
+                    flex: ExamHeaderLayout.columnWidthsDxa[i],
+                    child: Padding(
+                      // Word table cells have a default horizontal inset of 108 twips.
+                      padding: const EdgeInsets.symmetric(horizontal: 108 / 20 * pxPerPt),
+                      child: Column(
+                        children: <Widget>[
+                          for (final line in cells[i])
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 24 / 20 * pxPerPt),
+                              child: Text(line, style: headerStyle, textAlign: TextAlign.center),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (paper.header.includeStudentFields) ...<Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(child: Text(paper.header.studentNameLabel, style: headerStyle)),
+                  Expanded(child: Text(paper.header.studentNumberLabel, style: headerStyle)),
                 ],
               ),
+            ],
+            const Divider(color: Colors.black, thickness: 1.5, height: 12),
+            for (final paragraph in ExamLayoutPlan.build(paper))
+              _PreviewExamParagraph(
+                paragraph: paragraph,
+                paper: paper,
+                style: paragraph.kind == ExamParagraphKind.heading ? sectionStyle : baseStyle,
+              ),
+            if (paper.header.closingWish.trim().isNotEmpty) ...<Widget>[
+              const SizedBox(height: 140 / 20 * pxPerPt),
+              Text(paper.header.closingWish.trim(), style: baseStyle, textAlign: TextAlign.center),
+            ],
+            Align(
+              alignment: Alignment.centerLeft,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      for (var i = 0; i < cells.length; i++)
-                        Expanded(
-                          flex: ExamHeaderLayout.columnWidthsDxa[i],
-                          child: Padding(
-                            // Word table cells have a default horizontal inset of 108 twips.
-                            padding: const EdgeInsets.symmetric(horizontal: 108 / 20 * pxPerPt),
-                            child: Column(
-                              children: <Widget>[
-                                for (final line in cells[i])
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 24 / 20 * pxPerPt),
-                                    child: Text(line, style: headerStyle, textAlign: TextAlign.center),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  if (paper.header.includeStudentFields) ...<Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(child: Text(paper.header.studentNameLabel, style: headerStyle)),
-                        Expanded(child: Text(paper.header.studentNumberLabel, style: headerStyle)),
-                      ],
-                    ),
-                  ],
-                  const Divider(color: Colors.black, thickness: 1.5, height: 12),
-                  for (final paragraph in ExamLayoutPlan.build(paper))
-                    _PreviewExamParagraph(
-                      paragraph: paragraph,
-                      paper: paper,
-                      style: paragraph.kind == ExamParagraphKind.heading ? sectionStyle : baseStyle,
-                    ),
-                  if (paper.header.closingWish.trim().isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 140 / 20 * pxPerPt),
-                    Text(paper.header.closingWish.trim(), style: baseStyle, textAlign: TextAlign.center),
-                  ],
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      children: <Widget>[
-                        if (paper.header.teacherTitle.trim().isNotEmpty)
-                          Text(paper.header.teacherTitle.trim(), style: baseStyle),
-                        if (paper.header.teacherName.trim().isNotEmpty)
-                          Text(paper.header.teacherName.trim(), style: baseStyle),
-                      ],
-                    ),
-                  ),
+                  if (paper.header.teacherTitle.trim().isNotEmpty)
+                    Text(paper.header.teacherTitle.trim(), style: baseStyle),
+                  if (paper.header.teacherName.trim().isNotEmpty)
+                    Text(paper.header.teacherName.trim(), style: baseStyle),
                 ],
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
