@@ -152,9 +152,9 @@ class ExamLayoutPlan {
       }
     }
 
-    heading('_قواعد اللغة العربية :_', paper.grammar.degree);
+    heading('_قواعد اللغة العربية :_', paper.effectiveGrammarDegree);
     section(paper.grammar);
-    heading('_الاملاء :_', paper.orthography.degree);
+    heading('_الاملاء :_', paper.effectiveOrthographyDegree);
     section(paper.orthography);
     return List<ExamLayoutParagraph>.unmodifiable(result);
   }

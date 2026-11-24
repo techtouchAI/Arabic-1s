@@ -1,4 +1,9 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/dimens.dart';
@@ -18,11 +23,21 @@ import '../widgets/text_scale_controls.dart';
 import '../widgets/underline_rich_text.dart';
 
 typedef ExportExamCallback = Future<ExportOutcome> Function(ArabicExamPaper paper);
+typedef ExportExamImageCallback = Future<ExportOutcome> Function(
+  Uint8List pngBytes,
+  ArabicExamPaper paper,
+);
 
 class ExamComposerScreen extends StatefulWidget {
-  const ExamComposerScreen({super.key, this.onExport, this.savedExamId});
+  const ExamComposerScreen({
+    super.key,
+    this.onExport,
+    this.onExportImage,
+    this.savedExamId,
+  });
 
   final ExportExamCallback? onExport;
+  final ExportExamImageCallback? onExportImage;
 
   /// Reopens this paper from «أسئلتي المحفوظة»; edits update the same record.
   final String? savedExamId;
@@ -147,25 +162,28 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
                     spacing: AppSpacing.sm,
                     runSpacing: AppSpacing.xs,
                     children: <Widget>[
-                      SegmentedButton<int>(
-                        segments: const <ButtonSegment<int>>[
-                          ButtonSegment<int>(
-                            value: 0,
-                            icon: Icon(Icons.tune, size: 18),
-                            label: Text('إعداد الأسئلة'),
-                          ),
-                          ButtonSegment<int>(
-                            value: 1,
-                            icon: Icon(Icons.preview_outlined, size: 18),
-                            label: Text('معاينة ورقة A4'),
-                          ),
-                        ],
-                        selected: <int>{_tabIndex},
-                        onSelectionChanged: (Set<int> next) {
-                          if (next.isNotEmpty) {
-                            setState(() => _tabIndex = next.first);
-                          }
-                        },
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: SegmentedButton<int>(
+                          segments: const <ButtonSegment<int>>[
+                            ButtonSegment<int>(
+                              value: 0,
+                              icon: Icon(Icons.tune, size: 18),
+                              label: Text('إعداد الأسئلة'),
+                            ),
+                            ButtonSegment<int>(
+                              value: 1,
+                              icon: Icon(Icons.preview_outlined, size: 18),
+                              label: Text('معاينة ورقة A4'),
+                            ),
+                          ],
+                          selected: <int>{_tabIndex},
+                          onSelectionChanged: (Set<int> next) {
+                            if (next.isNotEmpty) {
+                              setState(() => _tabIndex = next.first);
+                            }
+                          },
+                        ),
                       ),
                       _DegreeSummaryBadge(paper: paper),
                     ],
@@ -175,7 +193,11 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
               Expanded(
                 child: _tabIndex == 0
                     ? _ComposerEditorView(controller: ctrl)
-                    : _LivePaperPreview(paper: paper),
+                    : _LivePaperPreview(
+                        paper: paper,
+                        onExportImage: widget.onExportImage,
+                        onWillExport: () => _autosaver?.saveNow(),
+                      ),
               ),
             ],
           ),
@@ -200,24 +222,33 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
                         child: Text(
                           'المجموع الكلي: ${toArabicDigits(paper.totalDegree)} درجة '
                           '(${toArabicDigits(paper.composition.degree)} + '
-                          '${toArabicDigits(paper.grammar.degree)} + '
-                          '${toArabicDigits(paper.orthography.degree)})',
+                          '${toArabicDigits(paper.effectiveGrammarDegree)} + '
+                          '${toArabicDigits(paper.effectiveOrthographyDegree)})',
                           style: theme.textTheme.labelLarge,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      FilledButton.icon(
-                        key: const ValueKey<String>('export-docx-button'),
-                        onPressed: _exporting ? null : _exportPaper,
-                        icon: _exporting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.download_outlined, size: 20),
-                        label: Text(
-                          _exporting ? 'جاري التصدير...' : 'تصدير Word (.docx)',
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: FilledButton.icon(
+                            key: const ValueKey<String>('export-docx-button'),
+                            onPressed: _exporting ? null : _exportPaper,
+                            icon: _exporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.download_outlined, size: 20),
+                            label: Text(
+                              _exporting
+                                  ? 'جاري التصدير...'
+                                  : 'تصدير Word (.docx)',
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -261,12 +292,10 @@ class _DegreeSummaryBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balanced = paper.grammarBalanced && paper.orthographyBalanced;
-    final okColor = AppColors.resolveAccent('green', Theme.of(context).brightness);
-    final warnColor = Theme.of(context).colorScheme.error;
-    final color = balanced ? okColor : warnColor;
+    final color = AppColors.resolveAccent('green', Theme.of(context).brightness);
 
     return Container(
+      key: const ValueKey<String>('degree-summary-badge'),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -277,16 +306,14 @@ class _DegreeSummaryBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Icon(
-            balanced ? Icons.verified_outlined : Icons.warning_amber_rounded,
+            Icons.verified_outlined,
             size: 16,
             color: color,
           ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              balanced
-                  ? 'توزيع الدرجات متوازن (${toArabicDigits(paper.totalDegree)})'
-                  : 'راجع مجموع درجات الأفرع',
+              'المجموع الكلي: ${toArabicDigits(paper.totalDegree)} درجة',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
             ),
           ),
@@ -421,9 +448,9 @@ class _ComposerEditorView extends StatelessWidget {
               // 4. Section 2 — قواعد اللغة العربية
               SectionHeader(
                 title:
-                    'ثانياً: قواعد اللغة العربية (${toArabicDigits(paper.grammar.degree)} درجة)',
+                    'ثانياً: قواعد اللغة العربية (${toArabicDigits(paper.effectiveGrammarDegree)} درجة)',
                 subtitle:
-                    'مجموع الأفرع الحالي: ${toArabicDigits(paper.grammar.branchesSum)} درجة — ضع علامة _حول الكلمة_ لوضع خط تحتها في Word',
+                    'تُحسب درجة القسم تلقائياً من مجموع الأفرع (${toArabicDigits(paper.grammar.branchesSum)} درجة) — ضع علامة _حول الكلمة_ لوضع خط تحتها في Word',
                 accent: scheme.primary,
                 trailing: TextButton.icon(
                   onPressed: () => controller.addQuestionBlock(isGrammar: true),
@@ -444,9 +471,9 @@ class _ComposerEditorView extends StatelessWidget {
               // 5. Section 3 — الإملاء
               SectionHeader(
                 title:
-                    'ثالثاً: الإملاء (${toArabicDigits(paper.orthography.degree)} درجة)',
+                    'ثالثاً: الإملاء (${toArabicDigits(paper.effectiveOrthographyDegree)} درجة)',
                 subtitle:
-                    'مجموع الأفرع الحالي: ${toArabicDigits(paper.orthography.branchesSum)} درجة',
+                    'تُحسب درجة القسم تلقائياً من مجموع الأفرع (${toArabicDigits(paper.orthography.branchesSum)} درجة)',
                 accent: AppColors.resolveAccent('green', theme.brightness),
                 trailing: TextButton.icon(
                   onPressed: () => _pickOrthographyBranch(context, controller),
@@ -876,7 +903,7 @@ class _CompositionEditor extends StatelessWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: SizedBox(
-              width: 96,
+              width: 108,
               child: _DegreeStepper(
                 degree: comp.degree,
                 onChanged: (d) =>
@@ -982,13 +1009,15 @@ class _QuestionBlockEditor extends StatelessWidget {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => controller.addBranchToQuestion(
-                  isGrammar: isGrammar,
-                  questionIndex: questionIndex,
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () => controller.addBranchToQuestion(
+                    isGrammar: isGrammar,
+                    questionIndex: questionIndex,
+                  ),
+                  icon: const Icon(Icons.call_split, size: 17),
+                  label: const Text('إضافة فرع'),
                 ),
-                icon: const Icon(Icons.call_split, size: 17),
-                label: const Text('إضافة فرع'),
               ),
               if ((isGrammar
                           ? controller.paper.grammar.questions.length
@@ -1050,7 +1079,7 @@ class _BranchEditor extends StatelessWidget {
           children: <Widget>[
             if (branch.branch.isNotEmpty) Chip(label: Text('فرع ${branch.branch}')),
             SizedBox(
-              width: 92,
+              width: 108,
               child: _DegreeStepper(
                 degree: branch.degree,
                 onChanged: (int d) => controller.updateBranch(
@@ -1277,8 +1306,8 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
   late BankApplyMode _mode;
   String? _part;
   String? _style;
+  bool _userPickedStyle = false;
   String? _unitId;
-  QuestionKind? _kind;
   int _targetQuestion = 0;
 
   @override
@@ -1328,8 +1357,9 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
     final bank = widget.controller.examBank;
     final showSourceSwitch =
         widget.allowUnitQuestions && widget.source == _BankSource.grammar;
-    final showStyle = _source == _BankSource.grammar;
-    final showKind = _source == _BankSource.unitQuestions;
+    final showGrammarStyle = _source == _BankSource.grammar;
+    final showOrthographyStyle = _source == _BankSource.orthography;
+    final showUnitQuestionStyle = _source == _BankSource.unitQuestions;
     final showTarget =
         _mode == BankApplyMode.addBranch && widget.questionCount > 1;
     final units = widget.library.units.toList(growable: false)
@@ -1374,7 +1404,14 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
                     selected: <_BankSource>{_source},
                     onSelectionChanged: (Set<_BankSource> next) {
                       if (next.isNotEmpty) {
-                        setState(() => _source = next.first);
+                        setState(() {
+                          _source = next.first;
+                          if (_source == _BankSource.grammar &&
+                              _style != null &&
+                              !ExamBankPicker.grammarStyles.contains(_style)) {
+                            _style = null;
+                          }
+                        });
                       }
                     },
                   ),
@@ -1429,30 +1466,61 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
                       selected: _part == 'part2',
                       onSelected: (_) => setState(() => _part = 'part2'),
                     ),
-                    if (showStyle) ...<Widget>[
+                    if (showGrammarStyle) ...<Widget>[
                       ChoiceChip(
                         label: const Text('كل الأنواع'),
                         selected: _style == null,
-                        onSelected: (_) => setState(() => _style = null),
+                        onSelected: (_) => setState(() {
+                          _style = null;
+                          _userPickedStyle = true;
+                        }),
                       ),
                       for (final s in ExamBankPicker.grammarStyles)
                         ChoiceChip(
                           label: Text(ExamBankPicker.grammarStyleLabel(s)),
                           selected: _style == s,
-                          onSelected: (_) => setState(() => _style = s),
+                          onSelected: (_) => setState(() {
+                            _style = s;
+                            _userPickedStyle = true;
+                          }),
                         ),
                     ],
-                    if (showKind) ...<Widget>[
+                    if (showOrthographyStyle) ...<Widget>[
                       ChoiceChip(
                         label: const Text('كل الأنواع'),
-                        selected: _kind == null,
-                        onSelected: (_) => setState(() => _kind = null),
+                        selected: _style == null,
+                        onSelected: (_) => setState(() {
+                          _style = null;
+                          _userPickedStyle = true;
+                        }),
                       ),
-                      for (final k in QuestionKind.values)
+                      for (final s in ExamBankPicker.orthographyStyles)
                         ChoiceChip(
-                          label: Text(ExamBankPicker.questionKindLabel(k)),
-                          selected: _kind == k,
-                          onSelected: (_) => setState(() => _kind = k),
+                          label: Text(ExamBankPicker.orthographyStyleLabel(s)),
+                          selected: _style == s,
+                          onSelected: (_) => setState(() {
+                            _style = s;
+                            _userPickedStyle = true;
+                          }),
+                        ),
+                    ],
+                    if (showUnitQuestionStyle) ...<Widget>[
+                      ChoiceChip(
+                        label: const Text('كل الأنواع'),
+                        selected: _style == null,
+                        onSelected: (_) => setState(() {
+                          _style = null;
+                          _userPickedStyle = true;
+                        }),
+                      ),
+                      for (final s in ExamBankPicker.unitQuestionStyles)
+                        ChoiceChip(
+                          label: Text(ExamBankPicker.grammarStyleLabel(s)),
+                          selected: _style == s,
+                          onSelected: (_) => setState(() {
+                            _style = s;
+                            _userPickedStyle = true;
+                          }),
                         ),
                     ],
                   ],
@@ -1514,8 +1582,8 @@ class _BankPickerSheetState extends State<_BankPickerSheet> {
                   source: _source,
                   part: _part,
                   style: _style,
+                  broadenSearchAcrossStyles: !_userPickedStyle,
                   unitId: _unitId,
-                  kind: _kind,
                   query: _search.text,
                   onPick: _pick,
                 ),
@@ -1537,8 +1605,8 @@ class _BankResults extends StatelessWidget {
     required this.source,
     required this.part,
     required this.style,
+    required this.broadenSearchAcrossStyles,
     required this.unitId,
-    required this.kind,
     required this.query,
     required this.onPick,
   });
@@ -1548,8 +1616,8 @@ class _BankResults extends StatelessWidget {
   final _BankSource source;
   final String? part;
   final String? style;
+  final bool broadenSearchAcrossStyles;
   final String? unitId;
-  final QuestionKind? kind;
   final String query;
   final ValueChanged<BankSelection> onPick;
 
@@ -1558,15 +1626,25 @@ class _BankResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canBroaden =
+        broadenSearchAcrossStyles && style != null && query.trim().isNotEmpty;
     switch (source) {
       case _BankSource.grammar:
-        final items = ExamBankPicker.filterGrammarItems(
+        var items = ExamBankPicker.filterGrammarItems(
           bank,
           part: part,
           style: style,
           unitId: unitId,
           query: query,
         );
+        if (items.isEmpty && canBroaden) {
+          items = ExamBankPicker.filterGrammarItems(
+            bank,
+            part: part,
+            unitId: unitId,
+            query: query,
+          );
+        }
         return _tiles(
           items.isEmpty,
           <Widget>[
@@ -1574,12 +1652,21 @@ class _BankResults extends StatelessWidget {
           ],
         );
       case _BankSource.orthography:
-        final items = ExamBankPicker.filterOrthographyItems(
+        var items = ExamBankPicker.filterOrthographyItems(
           bank,
           part: part,
+          style: style,
           unitId: unitId,
           query: query,
         );
+        if (items.isEmpty && canBroaden) {
+          items = ExamBankPicker.filterOrthographyItems(
+            bank,
+            part: part,
+            unitId: unitId,
+            query: query,
+          );
+        }
         return _tiles(
           items.isEmpty,
           <Widget>[
@@ -1600,13 +1687,21 @@ class _BankResults extends StatelessWidget {
           ],
         );
       case _BankSource.unitQuestions:
-        final entries = ExamBankPicker.filterUnitQuestions(
+        var entries = ExamBankPicker.filterUnitQuestions(
           library,
           part: part,
           unitId: unitId,
-          kind: kind,
+          examStyle: style,
           query: query,
         );
+        if (entries.isEmpty && canBroaden) {
+          entries = ExamBankPicker.filterUnitQuestions(
+            library,
+            part: part,
+            unitId: unitId,
+            query: query,
+          );
+        }
         return _tiles(
           entries.isEmpty,
           <Widget>[
@@ -1636,14 +1731,7 @@ class _BankResults extends StatelessWidget {
         '${unitTitle == null ? '' : ' • $unitTitle'}',
       ),
       trailing: const Icon(Icons.add_circle_outline),
-      onTap: () => onPick(
-        BankSelection(
-          text: item.text,
-          prompt: item.text,
-          degree: item.defaultDegree,
-          title: item.promptGroup,
-        ),
-      ),
+      onTap: () => onPick(ExamBankPicker.selectionForGrammarItem(item)),
     );
   }
 
@@ -1658,7 +1746,8 @@ class _BankResults extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${_partLabel(item.part)}'
+        '${_partLabel(item.part)} • '
+        '${ExamBankPicker.orthographyStyleLabel(item.style)}'
         '${unitTitle == null ? '' : ' • $unitTitle'}'
         '${item.items.isEmpty ? '' : ' • ${item.items.join(' • ')}'}',
         maxLines: 2,
@@ -1709,29 +1798,12 @@ class _BankResults extends StatelessWidget {
     return ListTile(
       key: ValueKey<String>('bank-item-${q.id}'),
       contentPadding: EdgeInsets.zero,
-      title: Text(
-        q.prompt,
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: UnderlineRichText(ExamBankPicker.unitQuestionAsExamText(q)),
       subtitle: Text(
-        '${entry.unit.displayTitle} • '
-        '${ExamBankPicker.questionKindLabel(q.kind)}',
+        '${entry.unit.displayTitle} • ${q.examStyleLabel}',
       ),
       trailing: const Icon(Icons.add_circle_outline),
-      onTap: () => onPick(
-        BankSelection(
-          text: ExamBankPicker.unitQuestionAsExamText(q),
-          prompt: q.prompt,
-          items: q.kind == QuestionKind.choice
-              ? q.options
-              : const <String>[],
-          layout: q.kind == QuestionKind.choice
-              ? ExamItemLayout.inline
-              : ExamItemLayout.vertical,
-          title: entry.unit.displayTitle,
-        ),
-      ),
+      onTap: () => onPick(ExamBankPicker.selectionForUnitQuestion(entry)),
     );
   }
 }
@@ -1757,12 +1829,137 @@ class _BankEmptyState extends StatelessWidget {
 /// Live preview sharing question order and spacing with the Word renderer.
 ///
 /// The A4 page sits in an [InteractiveViewer]: pinch with two fingers to
+@visibleForTesting
+Future<Uint8List> captureRepaintBoundaryPng(
+  RenderRepaintBoundary boundary, {
+  double preferredMaxPixelRatio = 4.0,
+}) async {
+  // Never read `boundary.debugNeedsPaint` outside an `assert`: in Flutter
+  // release/profile builds `assert` blocks are stripped and `debugNeedsPaint`
+  // throws `LateInitializationError: Local 'result' has not been initialized`.
+  var needsFrame = !boundary.hasSize;
+  assert(() {
+    needsFrame = needsFrame || boundary.debugNeedsPaint;
+    return true;
+  }());
+  if (needsFrame) {
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  final size = boundary.size;
+  final maxDim = math.max(size.width, size.height);
+  final candidates = <double>{
+    if (maxDim <= 0)
+      preferredMaxPixelRatio
+    else
+      math
+          .min(preferredMaxPixelRatio, 8192.0 / maxDim)
+          .clamp(1.0, preferredMaxPixelRatio),
+    if (maxDim > 0)
+      math
+          .min(preferredMaxPixelRatio, 4096.0 / maxDim)
+          .clamp(1.0, preferredMaxPixelRatio),
+    3.0,
+    2.0,
+    1.5,
+  }.toList()
+    ..sort((double a, double b) => b.compareTo(a));
+
+  Object? lastError;
+  for (var i = 0; i < candidates.length; i++) {
+    final ratio = candidates[i];
+    try {
+      final ui.Image image = await boundary.toImage(pixelRatio: ratio);
+      try {
+        final ByteData? byteData = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (byteData != null && byteData.lengthInBytes > 0) {
+          return byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          );
+        }
+      } finally {
+        image.dispose();
+      }
+    } catch (error) {
+      lastError = error;
+      if (i == 0) {
+        await WidgetsBinding.instance.endOfFrame;
+      }
+    }
+  }
+  throw StateError(
+    lastError == null
+        ? 'تعذّر ترميز صورة الورقة بصيغة PNG.'
+        : 'تعذّر توليد صورة الورقة: $lastError',
+  );
+}
+
+Future<void> _captureAndExportPaperImage({
+  required BuildContext context,
+  required GlobalKey boundaryKey,
+  required ArabicExamPaper paper,
+  ExportExamImageCallback? onExportImage,
+  VoidCallback? onWillExport,
+}) async {
+  onWillExport?.call();
+  final renderObject = boundaryKey.currentContext?.findRenderObject();
+  if (renderObject is! RenderRepaintBoundary) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذّر تجهيز معاينة الورقة للتنزيل.')),
+      );
+    }
+    return;
+  }
+
+  final Uint8List pngBytes = await captureRepaintBoundaryPng(renderObject);
+  final exporter = onExportImage ?? const ExamDocumentExporter().exportPng;
+  final outcome = await exporter(pngBytes, paper);
+  if (!context.mounted) {
+    return;
+  }
+  if (outcome.kind == ExportOutcomeKind.savedToFile) {
+    final bool offerShareAction = onExportImage == null &&
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم حفظ صورة الورقة بأعلى دقة: ${outcome.filePath}'),
+        action: offerShareAction
+            ? SnackBarAction(
+                label: 'مشاركة',
+                onPressed: () {
+                  const ExamDocumentExporter().sharePng(pngBytes, paper);
+                },
+              )
+            : null,
+      ),
+    );
+  } else if (outcome.kind == ExportOutcomeKind.shared) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم تجهيز صورة ورقة الأسئلة بأعلى دقة للمشاركة.'),
+      ),
+    );
+  }
+}
+
 /// zoom freely, drag to pan, and use the toolbar for button zoom,
 /// fit-to-width, reset and full-screen display.
 class _LivePaperPreview extends StatefulWidget {
-  const _LivePaperPreview({required this.paper});
+  const _LivePaperPreview({
+    required this.paper,
+    this.onExportImage,
+    this.onWillExport,
+  });
 
   final ArabicExamPaper paper;
+  final ExportExamImageCallback? onExportImage;
+  final VoidCallback? onWillExport;
 
   @override
   State<_LivePaperPreview> createState() => _LivePaperPreviewState();
@@ -1774,9 +1971,11 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
   static const double _zoomStep = 1.25;
 
   final TransformationController _controller = TransformationController();
+  final GlobalKey _boundaryKey = GlobalKey();
   double _scale = 1.0;
   double _viewportWidth = 0;
   double _viewportHeight = 0;
+  bool _savingImage = false;
 
   @override
   void initState() {
@@ -1833,77 +2032,167 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => _FullscreenPreview(paper: widget.paper),
+        builder: (_) => _FullscreenPreview(
+          paper: widget.paper,
+          onExportImage: widget.onExportImage,
+          onWillExport: widget.onWillExport,
+        ),
       ),
     );
+  }
+
+  Future<void> _downloadAsImage() async {
+    if (_savingImage) {
+      return;
+    }
+    setState(() => _savingImage = true);
+    try {
+      await _captureAndExportPaperImage(
+        context: context,
+        boundaryKey: _boundaryKey,
+        paper: widget.paper,
+        onExportImage: widget.onExportImage,
+        onWillExport: widget.onWillExport,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر تنزيل صورة الورقة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingImage = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final compactButtonStyle = TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      minimumSize: const Size(0, 34),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
-            AppSpacing.md,
+            AppSpacing.sm,
             AppSpacing.lg,
             AppSpacing.sm,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'معاينة تقريبية: قد تختلف الخطوط وتقسيم الصفحات في Word.',
+              SizedBox(
+                key: const ValueKey<String>('preview-controls-row'),
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      TextButton.icon(
+                        key: const ValueKey<String>('preview-zoom-in'),
+                        style: compactButtonStyle,
+                        onPressed: () => _zoomTo(_scale * _zoomStep),
+                        icon: const Icon(Icons.zoom_in, size: 17),
+                        label: const Text(
+                          'تكبير',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        key: const ValueKey<String>('preview-zoom-out'),
+                        style: compactButtonStyle,
+                        onPressed: () => _zoomTo(_scale / _zoomStep),
+                        icon: const Icon(Icons.zoom_out, size: 17),
+                        label: const Text(
+                          'تصغير',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        key: const ValueKey<String>('preview-zoom-fit'),
+                        style: compactButtonStyle,
+                        onPressed: _fitWidth,
+                        icon: const Icon(Icons.fit_screen, size: 17),
+                        label: const Text(
+                          'ملاءمة العرض',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        key: const ValueKey<String>('preview-zoom-reset'),
+                        style: compactButtonStyle,
+                        onPressed: () => _controller.value = Matrix4.identity(),
+                        icon: const Icon(Icons.center_focus_strong, size: 17),
+                        label: const Text(
+                          'إعادة',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton.icon(
+                        key: const ValueKey<String>('preview-fullscreen'),
+                        style: compactButtonStyle,
+                        onPressed: _openFullscreen,
+                        icon: const Icon(Icons.fullscreen, size: 17),
+                        label: const Text(
+                          'ملء الشاشة',
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Wrap(
-                spacing: AppSpacing.xs,
+                spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.xs,
+                alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
-                  IconButton(
-                    key: const ValueKey<String>('preview-zoom-out'),
-                    tooltip: 'تصغير',
-                    onPressed: () => _zoomTo(_scale / _zoomStep),
-                    icon: const Icon(Icons.zoom_out),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey<String>('preview-download-image'),
+                      onPressed: _savingImage ? null : _downloadAsImage,
+                      icon: _savingImage
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_outlined, size: 18),
+                      label: Text(
+                        _savingImage
+                            ? 'جاري تجهيز الصورة...'
+                            : 'تنزيل الورقة كصورة بأعلى دقة',
+                      ),
+                    ),
                   ),
                   Text(
-                    key: const ValueKey<String>('preview-zoom-label'),
-                    '${toArabicDigits((_scale * 100).round())}٪',
-                    style: theme.textTheme.labelLarge,
-                  ),
-                  IconButton(
-                    key: const ValueKey<String>('preview-zoom-in'),
-                    tooltip: 'تكبير',
-                    onPressed: () => _zoomTo(_scale * _zoomStep),
-                    icon: const Icon(Icons.zoom_in),
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey<String>('preview-zoom-fit'),
-                    onPressed: _fitWidth,
-                    icon: const Icon(Icons.fit_screen, size: 18),
-                    label: const Text('ملاءمة العرض'),
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey<String>('preview-zoom-reset'),
-                    onPressed: () => _controller.value = Matrix4.identity(),
-                    icon: const Icon(Icons.center_focus_strong, size: 18),
-                    label: const Text('إعادة'),
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey<String>('preview-fullscreen'),
-                    onPressed: _openFullscreen,
-                    icon: const Icon(Icons.fullscreen, size: 18),
-                    label: const Text('ملء الشاشة'),
+                    'قرّص بإصبعين للتكبير والتصغير، واسحب للتحريك.',
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'قرّص بإصبعين للتكبير والتصغير، واسحب للتحريك.',
-                style: theme.textTheme.bodySmall,
               ),
             ],
           ),
@@ -1920,7 +2209,10 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
                 maxScale: _maxScale,
                 boundaryMargin: const EdgeInsets.all(double.infinity),
                 constrained: false,
-                child: _ExamPageCanvas(paper: widget.paper),
+                child: _ExamPageCanvas(
+                  paper: widget.paper,
+                  repaintBoundaryKey: _boundaryKey,
+                ),
               );
             },
           ),
@@ -1932,9 +2224,15 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
 
 /// Full-screen A4 preview opened from the inline preview toolbar.
 class _FullscreenPreview extends StatefulWidget {
-  const _FullscreenPreview({required this.paper});
+  const _FullscreenPreview({
+    required this.paper,
+    this.onExportImage,
+    this.onWillExport,
+  });
 
   final ArabicExamPaper paper;
+  final ExportExamImageCallback? onExportImage;
+  final VoidCallback? onWillExport;
 
   @override
   State<_FullscreenPreview> createState() => _FullscreenPreviewState();
@@ -1942,12 +2240,40 @@ class _FullscreenPreview extends StatefulWidget {
 
 class _FullscreenPreviewState extends State<_FullscreenPreview> {
   final TransformationController _controller = TransformationController();
+  final GlobalKey _boundaryKey = GlobalKey();
   bool _fitted = false;
+  bool _savingImage = false;
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _downloadAsImage() async {
+    if (_savingImage) {
+      return;
+    }
+    setState(() => _savingImage = true);
+    try {
+      await _captureAndExportPaperImage(
+        context: context,
+        boundaryKey: _boundaryKey,
+        paper: widget.paper,
+        onExportImage: widget.onExportImage,
+        onWillExport: widget.onWillExport,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذّر تنزيل صورة الورقة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingImage = false);
+      }
+    }
   }
 
   @override
@@ -1957,6 +2283,20 @@ class _FullscreenPreviewState extends State<_FullscreenPreview> {
         title: const Text('معاينة ورقة A4'),
         // No explicit close action: the fullscreenDialog route implies the
         // platform-standard CloseButton (tooltip «إغلاق») in the AppBar.
+        actions: <Widget>[
+          IconButton(
+            key: const ValueKey<String>('preview-fullscreen-download-image'),
+            tooltip: 'تنزيل الورقة كصورة بأعلى دقة',
+            onPressed: _savingImage ? null : _downloadAsImage,
+            icon: _savingImage
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.image_outlined),
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints c) {
@@ -1979,7 +2319,10 @@ class _FullscreenPreviewState extends State<_FullscreenPreview> {
             maxScale: 6.0,
             boundaryMargin: const EdgeInsets.all(double.infinity),
             constrained: false,
-            child: _ExamPageCanvas(paper: widget.paper),
+            child: _ExamPageCanvas(
+              paper: widget.paper,
+              repaintBoundaryKey: _boundaryKey,
+            ),
           );
         },
       ),
@@ -1989,9 +2332,10 @@ class _FullscreenPreviewState extends State<_FullscreenPreview> {
 
 /// The physical A4 canvas at 96 dpi, with the same half-inch margins as Word.
 class _ExamPageCanvas extends StatelessWidget {
-  const _ExamPageCanvas({required this.paper});
+  const _ExamPageCanvas({required this.paper, this.repaintBoundaryKey});
 
   final ArabicExamPaper paper;
+  final GlobalKey? repaintBoundaryKey;
 
   @override
   Widget build(BuildContext context) {
@@ -2019,73 +2363,80 @@ class _ExamPageCanvas extends StatelessWidget {
 
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-      child: Container(
-        width: pageWidth,
-        constraints: const BoxConstraints(minHeight: pageHeight),
-        padding: const EdgeInsets.all(margin),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black26),
-          boxShadow: const <BoxShadow>[
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          boxShadow: <BoxShadow>[
             BoxShadow(color: Color(0x1F000000), blurRadius: 14, offset: Offset(0, 6)),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: RepaintBoundary(
+          key: repaintBoundaryKey,
+          child: Container(
+            width: pageWidth,
+            constraints: const BoxConstraints(minHeight: pageHeight),
+            padding: const EdgeInsets.all(margin),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.black26),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                for (var i = 0; i < cells.length; i++)
-                  Expanded(
-                    flex: ExamHeaderLayout.columnWidthsDxa[i],
-                    child: Padding(
-                      // Word table cells have a default horizontal inset of 108 twips.
-                      padding: const EdgeInsets.symmetric(horizontal: 108 / 20 * pxPerPt),
-                      child: Column(
-                        children: <Widget>[
-                          for (final line in cells[i])
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 24 / 20 * pxPerPt),
-                              child: Text(line, style: headerStyle, textAlign: TextAlign.center),
-                            ),
-                        ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (var i = 0; i < cells.length; i++)
+                      Expanded(
+                        flex: ExamHeaderLayout.columnWidthsDxa[i],
+                        child: Padding(
+                          // Word table cells have a default horizontal inset of 108 twips.
+                          padding: const EdgeInsets.symmetric(horizontal: 108 / 20 * pxPerPt),
+                          child: Column(
+                            children: <Widget>[
+                              for (final line in cells[i])
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 24 / 20 * pxPerPt),
+                                  child: Text(line, style: headerStyle, textAlign: TextAlign.center),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                  ],
+                ),
+                if (paper.header.includeStudentFields) ...<Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(child: Text(paper.header.studentNameLabel, style: headerStyle)),
+                      Expanded(child: Text(paper.header.studentNumberLabel, style: headerStyle)),
+                    ],
                   ),
+                ],
+                const Divider(color: Colors.black, thickness: 1.5, height: 12),
+                for (final paragraph in ExamLayoutPlan.build(paper))
+                  _PreviewExamParagraph(
+                    paragraph: paragraph,
+                    paper: paper,
+                    style: paragraph.kind == ExamParagraphKind.heading ? sectionStyle : baseStyle,
+                  ),
+                if (paper.header.closingWish.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 140 / 20 * pxPerPt),
+                  Text(paper.header.closingWish.trim(), style: baseStyle, textAlign: TextAlign.center),
+                ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    children: <Widget>[
+                      if (paper.header.teacherTitle.trim().isNotEmpty)
+                        Text(paper.header.teacherTitle.trim(), style: baseStyle),
+                      if (paper.header.teacherName.trim().isNotEmpty)
+                        Text(paper.header.teacherName.trim(), style: baseStyle),
+                    ],
+                  ),
+                ),
               ],
             ),
-            if (paper.header.includeStudentFields) ...<Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(child: Text(paper.header.studentNameLabel, style: headerStyle)),
-                  Expanded(child: Text(paper.header.studentNumberLabel, style: headerStyle)),
-                ],
-              ),
-            ],
-            const Divider(color: Colors.black, thickness: 1.5, height: 12),
-            for (final paragraph in ExamLayoutPlan.build(paper))
-              _PreviewExamParagraph(
-                paragraph: paragraph,
-                paper: paper,
-                style: paragraph.kind == ExamParagraphKind.heading ? sectionStyle : baseStyle,
-              ),
-            if (paper.header.closingWish.trim().isNotEmpty) ...<Widget>[
-              const SizedBox(height: 140 / 20 * pxPerPt),
-              Text(paper.header.closingWish.trim(), style: baseStyle, textAlign: TextAlign.center),
-            ],
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                children: <Widget>[
-                  if (paper.header.teacherTitle.trim().isNotEmpty)
-                    Text(paper.header.teacherTitle.trim(), style: baseStyle),
-                  if (paper.header.teacherName.trim().isNotEmpty)
-                    Text(paper.header.teacherName.trim(), style: baseStyle),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -2245,6 +2596,16 @@ class _DegreeStepper extends StatelessWidget {
   final int degree;
   final ValueChanged<int> onChanged;
 
+  Future<void> _promptDirectDegree(BuildContext context) async {
+    final next = await showDialog<int>(
+      context: context,
+      builder: (_) => _DegreeInputDialog(initialDegree: degree),
+    );
+    if (next != null && next != degree) {
+      onChanged(next);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2253,21 +2614,32 @@ class _DegreeStepper extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: <Widget>[
           InkWell(
-            onTap: degree > 1 ? () => onChanged(degree - 1) : null,
+            onTap: degree > 0 ? () => onChanged(degree - 1) : null,
             child: const Padding(
               padding: EdgeInsets.all(6),
               child: Icon(Icons.remove, size: 16),
             ),
           ),
-          Text(
-            toArabicDigits(degree),
-            style: Theme.of(context).textTheme.titleSmall,
+          Expanded(
+            child: InkWell(
+              onTap: () => _promptDirectDegree(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    toArabicDigits(degree),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+              ),
+            ),
           ),
           InkWell(
-            onTap: degree < 60 ? () => onChanged(degree + 1) : null,
+            onTap: degree < 100 ? () => onChanged(degree + 1) : null,
             child: const Padding(
               padding: EdgeInsets.all(6),
               child: Icon(Icons.add, size: 16),
@@ -2275,6 +2647,64 @@ class _DegreeStepper extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DegreeInputDialog extends StatefulWidget {
+  const _DegreeInputDialog({required this.initialDegree});
+
+  final int initialDegree;
+
+  @override
+  State<_DegreeInputDialog> createState() => _DegreeInputDialogState();
+}
+
+class _DegreeInputDialogState extends State<_DegreeInputDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialDegree.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final parsed = parseIntegerDigits(_controller.text);
+    if (parsed != null) {
+      Navigator.of(context).pop(parsed.clamp(0, 100));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('تعديل الدرجة'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'الدرجة (٠ – ١٠٠)',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('حفظ'),
+        ),
+      ],
     );
   }
 }

@@ -8,8 +8,10 @@ import '../../core/utils/arabic_text.dart';
 import '../../core/widgets/app_page.dart';
 import '../../core/widgets/section_header.dart';
 import '../../domain/models/library.dart';
+import '../../domain/services/exam_bank_picker.dart';
 import '../state/app_state.dart';
 import '../widgets/text_scale_controls.dart';
+import '../widgets/underline_rich_text.dart';
 
 class QuizScreen extends StatefulWidget {
   const QuizScreen({super.key});
@@ -20,27 +22,45 @@ class QuizScreen extends StatefulWidget {
 
 class _QuizScreenState extends State<QuizScreen> {
   String _selectedUnitId = 'all';
+  String _selectedExamStyle = 'all';
   List<_QuizEntry>? _activeSession;
   int _currentIndex = 0;
   int _correctCount = 0;
   bool _answeredCurrent = false;
   bool _lastCorrect = false;
+  int? _pickedIndex;
 
   void _startQuiz(AppState state) {
+    final rng = Random();
     final units = _selectedUnitId == 'all'
         ? state.partUnits
         : state.partUnits.where((u) => u.id == _selectedUnitId).toList();
     final pool = <_QuizEntry>[];
     for (final u in units) {
       for (final q in u.questions) {
-        if (q.kind == QuestionKind.trueFalse || q.kind == QuestionKind.choice) {
-          pool.add(_QuizEntry(unitTitle: u.displayTitle, question: q));
+        if (_selectedExamStyle != 'all' &&
+            q.effectiveExamStyle != _selectedExamStyle) {
+          continue;
+        }
+        if (q.hasInteractiveChoices) {
+          pool.add(
+            _QuizEntry.fromQuestion(
+              unitTitle: u.displayTitle,
+              question: q,
+              rng: rng,
+            ),
+          );
         }
       }
     }
-    pool.shuffle(Random());
+    pool.shuffle(rng);
     final selected = pool.take(10).toList(growable: false);
     if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد أسئلة مطابقة لهذا النمط في النطاق المحدد.'),
+        ),
+      );
       return;
     }
     setState(() {
@@ -48,15 +68,17 @@ class _QuizScreenState extends State<QuizScreen> {
       _currentIndex = 0;
       _correctCount = 0;
       _answeredCurrent = false;
+      _pickedIndex = null;
     });
   }
 
-  void _submitAnswer(AppState state, bool isCorrect) {
+  void _submitAnswer(int index, bool isCorrect) {
     if (_answeredCurrent) {
       return;
     }
     setState(() {
       _answeredCurrent = true;
+      _pickedIndex = index;
       _lastCorrect = isCorrect;
       if (isCorrect) {
         _correctCount++;
@@ -67,23 +89,28 @@ class _QuizScreenState extends State<QuizScreen> {
   void _nextQuestion(AppState state) {
     final session = _activeSession!;
     if (_currentIndex + 1 >= session.length) {
-      final scopeLabel = _selectedUnitId == 'all'
+      final unitLabel = _selectedUnitId == 'all'
           ? state.partTitle
           : (state.library.unitById(_selectedUnitId)?.displayTitle ??
                 state.partTitle);
+      final styleSuffix = _selectedExamStyle == 'all'
+          ? ''
+          : ' • ${ExamBankPicker.grammarStyleLabel(_selectedExamStyle)}';
       state.recordQuizScore(
-        scopeLabel: scopeLabel,
+        scopeLabel: '$unitLabel$styleSuffix',
         correct: _correctCount,
         total: session.length,
       );
       setState(() {
         _activeSession = null;
+        _pickedIndex = null;
       });
       return;
     }
     setState(() {
       _currentIndex++;
       _answeredCurrent = false;
+      _pickedIndex = null;
     });
   }
 
@@ -140,11 +167,12 @@ class _QuizScreenState extends State<QuizScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Text(
-                'اختبر إتقانك للمنهج مع التصحيح الفوري والشاهد التوضيحي',
+                'اختبر إتقانك بأنماط الأسئلة الوزارية الرسمية مع التصحيح الفوري والشرح النموذجي',
                 style: theme.textTheme.titleLarge,
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<String>(
+                key: const ValueKey<String>('quiz-unit-filter'),
                 initialValue: _selectedUnitId,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -166,6 +194,30 @@ class _QuizScreenState extends State<QuizScreen> {
                     setState(() => _selectedUnitId = v);
                   }
                 },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text('نمط السؤال الرسمي:', style: theme.textTheme.labelLarge),
+              const SizedBox(height: AppSpacing.xs),
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: <Widget>[
+                  ChoiceChip(
+                    key: const ValueKey<String>('quiz-style-all'),
+                    label: const Text('جميع الأنماط'),
+                    selected: _selectedExamStyle == 'all',
+                    onSelected: (_) =>
+                        setState(() => _selectedExamStyle = 'all'),
+                  ),
+                  for (final style in ExamBankPicker.unitQuestionStyles)
+                    ChoiceChip(
+                      key: ValueKey<String>('quiz-style-$style'),
+                      label: Text(ExamBankPicker.grammarStyleLabel(style)),
+                      selected: _selectedExamStyle == style,
+                      onSelected: (_) =>
+                          setState(() => _selectedExamStyle = style),
+                    ),
+                ],
               ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
@@ -189,9 +241,15 @@ class _QuizScreenState extends State<QuizScreen> {
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: scheme.primaryContainer,
-                  child: Text(
-                    '${toArabicDigits(score.correct)}/${toArabicDigits(score.total)}',
-                    style: theme.textTheme.labelMedium,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${toArabicDigits(score.correct)}/${toArabicDigits(score.total)}',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
                   ),
                 ),
                 title: Text(score.scopeLabel),
@@ -221,11 +279,12 @@ class _QuizScreenState extends State<QuizScreen> {
       children: <Widget>[
         const SizedBox(height: AppSpacing.md),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              'السؤال ${toArabicDigits(_currentIndex + 1)} من ${toArabicDigits(session.length)}',
-              style: theme.textTheme.labelLarge,
+            Expanded(
+              child: Text(
+                'السؤال ${toArabicDigits(_currentIndex + 1)} من ${toArabicDigits(session.length)}',
+                style: theme.textTheme.labelLarge,
+              ),
             ),
             TextButton(
               onPressed: () => setState(() => _activeSession = null),
@@ -248,50 +307,60 @@ class _QuizScreenState extends State<QuizScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text(entry.unitTitle, style: theme.textTheme.labelMedium),
-              const SizedBox(height: 6),
-              Text(q.prompt, style: theme.textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.lg),
-              if (q.kind == QuestionKind.trueFalse)
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _answeredCurrent
-                            ? null
-                            : () => _submitAnswer(state, q.boolAnswer == true),
-                        child: const Text('صح'),
-                      ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  Text(entry.unitTitle, style: theme.textTheme.labelMedium),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _answeredCurrent
-                            ? null
-                            : () => _submitAnswer(state, q.boolAnswer == false),
-                        child: const Text('خطأ'),
-                      ),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                )
-              else
-                for (var i = 0; i < q.options.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        alignment: AlignmentDirectional.centerStart,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
+                    child: Text(
+                      q.examStyleLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w700,
                       ),
-                      onPressed: _answeredCurrent
-                          ? null
-                          : () => _submitAnswer(state, q.answerIndex == i),
-                      child: Text(q.options[i]),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              UnderlineRichText(q.prompt, style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.lg),
+              for (var i = 0; i < entry.options.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton(
+                    key: ValueKey<String>('quiz-option-$i'),
+                    style: OutlinedButton.styleFrom(
+                      alignment: AlignmentDirectional.centerStart,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      backgroundColor: _answeredCurrent &&
+                              i == entry.correctIndex
+                          ? okColor.withValues(alpha: 0.14)
+                          : (_answeredCurrent &&
+                                  _pickedIndex == i &&
+                                  i != entry.correctIndex)
+                              ? scheme.error.withValues(alpha: 0.12)
+                              : null,
+                    ),
+                    onPressed: _answeredCurrent
+                        ? null
+                        : () => _submitAnswer(i, i == entry.correctIndex),
+                    child: Text(entry.options[i]),
+                  ),
+                ),
               if (_answeredCurrent) ...<Widget>[
                 const SizedBox(height: AppSpacing.md),
                 Container(
@@ -305,18 +374,33 @@ class _QuizScreenState extends State<QuizScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        _lastCorrect ? 'إجابة صحيحة! أحسنت.' : 'الإجابة الصحيحة:',
+                        _lastCorrect
+                            ? 'إجابة صحيحة! أحسنت.'
+                            : 'الجواب النموذجي الصحيح:',
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: _lastCorrect ? okColor : scheme.error,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(q.displayAnswer, style: theme.textTheme.bodyMedium),
+                      UnderlineRichText(
+                        q.displayAnswer,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      if (q.kind == QuestionKind.choice &&
+                          q.answerSupport != null &&
+                          q.answerSupport!.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Text(
+                          'الشاهد: ${q.answerSupport}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 FilledButton(
+                  key: const ValueKey<String>('quiz-next-button'),
                   onPressed: () => _nextQuestion(state),
                   child: Text(
                     _currentIndex + 1 >= session.length
@@ -334,8 +418,34 @@ class _QuizScreenState extends State<QuizScreen> {
 }
 
 class _QuizEntry {
-  const _QuizEntry({required this.unitTitle, required this.question});
+  const _QuizEntry({
+    required this.unitTitle,
+    required this.question,
+    required this.options,
+    required this.correctIndex,
+  });
+
+  factory _QuizEntry.fromQuestion({
+    required String unitTitle,
+    required Question question,
+    required Random rng,
+  }) {
+    final baseOptions = question.interactiveOptions;
+    final baseCorrect = question.interactiveAnswerIndex ?? 0;
+    final indices = List<int>.generate(baseOptions.length, (i) => i)
+      ..shuffle(rng);
+    final shuffled = <String>[for (final idx in indices) baseOptions[idx]];
+    final newCorrect = indices.indexOf(baseCorrect);
+    return _QuizEntry(
+      unitTitle: unitTitle,
+      question: question,
+      options: shuffled,
+      correctIndex: newCorrect < 0 ? 0 : newCorrect,
+    );
+  }
 
   final String unitTitle;
   final Question question;
+  final List<String> options;
+  final int correctIndex;
 }

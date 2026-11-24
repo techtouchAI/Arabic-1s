@@ -316,20 +316,23 @@ class _HeroBanner extends StatelessWidget {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: <Widget>[
-              SegmentedButton<CurriculumPart>(
-                segments: <ButtonSegment<CurriculumPart>>[
-                  for (final part in CurriculumPart.values)
-                    ButtonSegment<CurriculumPart>(
-                      value: part,
-                      label: Text(part.title),
-                    ),
-                ],
-                selected: <CurriculumPart>{state.activePart},
-                onSelectionChanged: (Set<CurriculumPart> next) {
-                  if (next.isNotEmpty) {
-                    state.selectPart(next.first);
-                  }
-                },
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SegmentedButton<CurriculumPart>(
+                  segments: <ButtonSegment<CurriculumPart>>[
+                    for (final part in CurriculumPart.values)
+                      ButtonSegment<CurriculumPart>(
+                        value: part,
+                        label: Text(part.title),
+                      ),
+                  ],
+                  selected: <CurriculumPart>{state.activePart},
+                  onSelectionChanged: (Set<CurriculumPart> next) {
+                    if (next.isNotEmpty) {
+                      state.selectPart(next.first);
+                    }
+                  },
+                ),
               ),
               Text(
                 'تمت قراءة ${toArabicDigits(readCount)} من ${toArabicDigits(state.partUnits.length)} وحدات',

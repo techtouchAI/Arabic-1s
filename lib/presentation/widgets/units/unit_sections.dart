@@ -7,6 +7,7 @@ import '../../../core/utils/arabic_text.dart';
 import '../../../domain/models/library.dart';
 import '../../../domain/models/progress.dart';
 import '../../state/app_state.dart';
+import '../underline_rich_text.dart';
 
 /// Renders a single textbook topic (reading text, poetry stanza, grammar rules,
 /// تقويم اللسان, orthography/expression, or exercises).
@@ -410,7 +411,25 @@ class _UnitQuestionCardState extends State<UnitQuestionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Text(
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: widget.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                q.examStyleLabel,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: widget.accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          UnderlineRichText(
             'س${toArabicDigits(widget.index)}: ${q.prompt}',
             style: theme.textTheme.titleMedium,
           ),
@@ -482,7 +501,7 @@ class _UnitQuestionCardState extends State<UnitQuestionCard> {
                 color: widget.accent.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(AppRadii.sm),
               ),
-              child: Text(
+              child: UnderlineRichText(
                 'الجواب النموذجي: ${q.displayAnswer}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w700,

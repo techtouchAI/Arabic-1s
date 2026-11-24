@@ -117,21 +117,43 @@ def main() -> int:
         q_ids = [q["id"] for q in u["questions"]]
         expect(len(set(q_ids)) == len(q_ids), f"[{uid}] duplicate question ids")
         total_questions += len(u["questions"])
+        valid_exam_styles = {
+            "mcq",
+            "irab",
+            "difference",
+            "apply",
+            "murab_mabni",
+            "ishara",
+            "extract",
+            "five_verbs",
+            "ortho",
+        }
         for q in u["questions"]:
             qid = f"{uid}/{q['id']}"
             expect(bool(q["prompt"].strip()), f"[{qid}] empty prompt")
+            expect(q["prompt"].count("_") % 2 == 0, f"[{qid}] unbalanced '_' underline marker")
             check_clean_arabic(q["prompt"], qid)
-            if q["kind"] == "trueFalse":
-                expect(isinstance(q.get("answer"), bool), f"[{qid}] bad trueFalse answer")
-                expect(bool(q.get("answerSupport", "").strip()), f"[{qid}] missing trueFalse support")
-            elif q["kind"] == "choice":
+            expect(q["kind"] in ("choice", "open"), f"[{qid}] unsupported question kind {q['kind']} (trueFalse prohibited)")
+            expect(q.get("examStyle") in valid_exam_styles, f"[{qid}] invalid or missing examStyle {q.get('examStyle')}")
+            if q["kind"] == "choice":
                 opts = q.get("options", [])
                 idx = q.get("answerIndex")
-                expect(len(opts) >= 3, f"[{qid}] too few options")
+                expect(len(opts) == 3, f"[{qid}] official exam choice must have 3 options, found {len(opts)}")
+                expect(len(set(opts)) == len(opts), f"[{qid}] duplicate options")
                 expect(idx is not None and 0 <= idx < len(opts), f"[{qid}] bad answerIndex")
                 expect(bool(q.get("answerSupport", "").strip()), f"[{qid}] missing choice support")
+                for opt in opts:
+                    check_clean_arabic(opt, f"{qid}/opt")
             elif q["kind"] == "open":
                 expect(bool(q.get("answer", "").strip()), f"[{qid}] empty open answer")
+                check_clean_arabic(q["answer"], f"{qid}/answer")
+                q_opts = q.get("quizOptions", [])
+                q_idx = q.get("quizAnswerIndex")
+                expect(len(q_opts) == 3, f"[{qid}] open question must have 3 quizOptions, found {len(q_opts)}")
+                expect(len(set(q_opts)) == len(q_opts), f"[{qid}] duplicate quizOptions")
+                expect(q_idx is not None and 0 <= q_idx < len(q_opts), f"[{qid}] bad quizAnswerIndex")
+                for opt in q_opts:
+                    check_clean_arabic(opt, f"{qid}/quizOpt")
 
     expect(total_questions == 114, f"expected 114 unit questions, found {total_questions}")
 

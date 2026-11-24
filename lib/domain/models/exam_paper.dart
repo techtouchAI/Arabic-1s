@@ -363,6 +363,20 @@ class ExamQuestionSection {
   int get branchesSum =>
       questions.fold<int>(0, (sum, q) => sum + q.totalDegree);
 
+  /// Live section total derived from its question branches when questions are
+  /// present, falling back to [degree] only when the section has no questions.
+  int get effectiveDegree => questions.isNotEmpty ? branchesSum : degree;
+
+  /// Updates [questions] and synchronizes [degree] with the sum of all branch
+  /// degrees so section and paper totals always stay accurate.
+  ExamQuestionSection withQuestions(List<ExamQuestionBlock> nextQuestions) {
+    final sum = nextQuestions.fold<int>(0, (acc, q) => acc + q.totalDegree);
+    return ExamQuestionSection(
+      degree: sum,
+      questions: nextQuestions,
+    );
+  }
+
   ExamQuestionSection copyWith({
     int? degree,
     List<ExamQuestionBlock>? questions,
@@ -524,8 +538,11 @@ class ArabicExamPaper {
   final ExamQuestionSection orthography;
   final ExamTypography typography;
 
+  int get effectiveGrammarDegree => grammar.effectiveDegree;
+  int get effectiveOrthographyDegree => orthography.effectiveDegree;
+
   int get totalDegree =>
-      composition.degree + grammar.degree + orthography.degree;
+      composition.degree + effectiveGrammarDegree + effectiveOrthographyDegree;
 
   bool get grammarBalanced => grammar.branchesSum == grammar.degree;
   bool get orthographyBalanced => orthography.branchesSum == orthography.degree;
@@ -602,11 +619,14 @@ class GrammarBankItem {
   factory GrammarBankItem.fromJson(Map<String, dynamic> json) {
     final category =
         (json['category'] as String?) ?? (json['promptGroup'] as String?) ?? '';
+    final explicitStyle = (json['style'] as String?) ?? '';
     return GrammarBankItem(
       id: json['id'] as String,
       part: json['part'] as String,
       unitId: (json['unitId'] as String?) ?? '',
-      style: GrammarBankItem.styleFromText(category) ?? 'apply',
+      style: explicitStyle.isNotEmpty
+          ? explicitStyle
+          : (GrammarBankItem.styleFromText(category) ?? 'apply'),
       promptGroup: category,
       text: json['text'] as String,
       defaultDegree: (json['defaultDegree'] as int?) ?? 5,
@@ -616,14 +636,25 @@ class GrammarBankItem {
   /// Single source of truth for style classification across the bank JSON,
   /// the auto-generator and the per-branch bank picker. Matches both the
   /// bank's `category` vocabulary (`أعرب ما تحته خط`, `معرب ومبني`,
-  /// `اختيارات`, `ما الفرق بين الجملتين`, `استخرج الخبر ونوعه`) and the
-  /// wording of handwritten branch prompts (`اعرب`, `اختر`, …).
+  /// `عين أسماء الإشارة والمشار إليه`, `الأفعال الخمسة`, `اختيارات`,
+  /// `ما الفرق بين الجملتين`, `استخرج الخبر ونوعه`) and the wording of
+  /// handwritten branch prompts (`اعرب`, `اختر`, …).
   /// Returns `null` when the text constrains no style (generic `apply`).
   static String? styleFromText(String text) {
+    if ((text.contains('معرب') && text.contains('مبني')) ||
+        text.contains('المعربة') ||
+        text.contains('المبنية')) {
+      return 'murab_mabni';
+    }
+    if (text.contains('الإشارة') || text.contains('الاشارة')) {
+      return 'ishara';
+    }
+    if (text.contains('الأفعال الخمسة') || text.contains('الافعال الخمسة')) {
+      return 'five_verbs';
+    }
     if (text.contains('إعراب') ||
         text.contains('أعرب') ||
-        text.contains('اعرب') ||
-        text.contains('معرب')) {
+        text.contains('اعرب')) {
       return 'irab';
     }
     if (text.contains('اختر') || text.contains('اختيارات')) {
@@ -634,9 +665,6 @@ class GrammarBankItem {
     }
     if (text.contains('الخبر') || text.contains('استخرج')) {
       return 'extract';
-    }
-    if (text.contains('تقويم')) {
-      return 'taqwim';
     }
     return null;
   }
@@ -663,23 +691,48 @@ class OrthographyBankItem {
     required this.defaultDegree,
     required this.itemLayout,
     this.title = '',
+    this.style = 'ortho_rule',
   });
 
-  factory OrthographyBankItem.fromJson(Map<String, dynamic> json) =>
-      OrthographyBankItem(
-        id: json['id'] as String,
-        part: json['part'] as String,
-        // `unitId` is the owning curriculum unit; the display `title` must
-        // never be used as a unit id (legacy records simply have no unit).
-        unitId: (json['unitId'] as String?) ?? '',
-        title: (json['title'] as String?) ?? '',
-        prompt: json['prompt'] as String,
-        items: ((json['items'] as List<dynamic>?) ?? const <dynamic>[])
-            .map((e) => e as String)
-            .toList(growable: false),
-        defaultDegree: (json['defaultDegree'] as int?) ?? 5,
-        itemLayout: ExamItemLayout.fromId(json['itemLayout'] as String?),
-      );
+  factory OrthographyBankItem.fromJson(Map<String, dynamic> json) {
+    final prompt = json['prompt'] as String;
+    final explicitStyle = (json['style'] as String?) ?? '';
+    return OrthographyBankItem(
+      id: json['id'] as String,
+      part: json['part'] as String,
+      // `unitId` is the owning curriculum unit; the display `title` must
+      // never be used as a unit id (legacy records simply have no unit).
+      unitId: (json['unitId'] as String?) ?? '',
+      title: (json['title'] as String?) ?? '',
+      prompt: prompt,
+      items: ((json['items'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((e) => e as String)
+          .toList(growable: false),
+      defaultDegree: (json['defaultDegree'] as int?) ?? 5,
+      itemLayout: ExamItemLayout.fromId(json['itemLayout'] as String?),
+      style: explicitStyle.isNotEmpty
+          ? explicitStyle
+          : OrthographyBankItem.styleFromText(prompt),
+    );
+  }
+
+  /// Classifies an orthography branch prompt into the official exam styles
+  /// (`sun_moon`, `tanween_reason`, `ortho_correct`, `ortho_rule`).
+  static String styleFromText(String text) {
+    if (text.contains('الشمسية') || text.contains('القمرية')) {
+      return 'sun_moon';
+    }
+    if (text.contains('عدم دخول التنوين') || text.contains('لا يدخل التنوين')) {
+      return 'tanween_reason';
+    }
+    if (text.contains('صحح') ||
+        text.contains('صحّح') ||
+        text.contains('الاخطاء') ||
+        text.contains('الأخطاء')) {
+      return 'ortho_correct';
+    }
+    return 'ortho_rule';
+  }
 
   final String id;
   final String part;
@@ -692,6 +745,10 @@ class OrthographyBankItem {
   /// Short display title from the bank (`title` in JSON); empty for legacy
   /// records, in which case callers fall back to [prompt].
   final String title;
+
+  /// Official orthography exam style (`ortho_rule`, `sun_moon`,
+  /// `tanween_reason`, `ortho_correct`).
+  final String style;
 }
 
 class OfficialExamTemplate {
