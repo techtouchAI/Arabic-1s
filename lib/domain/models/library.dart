@@ -199,19 +199,26 @@ class Question {
     required this.id,
     required this.kind,
     required this.prompt,
+    this.examStyle = '',
     this.boolAnswer,
     this.options = const <String>[],
     this.answerIndex,
     this.textAnswer,
     this.answerSupport,
+    this.quizOptions = const <String>[],
+    this.quizAnswerIndex,
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
     final kind = QuestionKind.fromRaw(json['kind'] as String);
+    final rawStyle = (json['examStyle'] as String?) ?? '';
     return Question(
       id: json['id'] as String,
       kind: kind,
       prompt: json['prompt'] as String,
+      examStyle: rawStyle.isNotEmpty
+          ? rawStyle
+          : (kind == QuestionKind.choice ? 'mcq' : 'apply'),
       boolAnswer: kind == QuestionKind.trueFalse ? json['answer'] as bool? : null,
       options: ((json['options'] as List<dynamic>?) ?? const <dynamic>[])
           .map((item) => item as String)
@@ -219,17 +226,89 @@ class Question {
       answerIndex: json['answerIndex'] as int?,
       textAnswer: kind == QuestionKind.open ? json['answer'] as String? : null,
       answerSupport: json['answerSupport'] as String?,
+      quizOptions:
+          ((json['quizOptions'] as List<dynamic>?) ?? const <dynamic>[])
+              .map((item) => item as String)
+              .toList(growable: false),
+      quizAnswerIndex: json['quizAnswerIndex'] as int?,
     );
   }
 
   final String id;
   final QuestionKind kind;
   final String prompt;
+  final String examStyle;
   final bool? boolAnswer;
   final List<String> options;
   final int? answerIndex;
   final String? textAnswer;
   final String? answerSupport;
+  final List<String> quizOptions;
+  final int? quizAnswerIndex;
+
+  /// Effective exam question style matching official exam generation categories.
+  String get effectiveExamStyle {
+    if (examStyle.isNotEmpty) {
+      return examStyle;
+    }
+    return kind == QuestionKind.choice ? 'mcq' : 'apply';
+  }
+
+  /// Arabic label for [effectiveExamStyle] aligned with official exam generation.
+  String get examStyleLabel => labelForExamStyle(effectiveExamStyle);
+
+  static String labelForExamStyle(String style) {
+    switch (style) {
+      case 'mcq':
+        return 'اختيارات';
+      case 'irab':
+        return 'أعرب ما تحته خط';
+      case 'difference':
+        return 'ما الفرق بين الجملتين';
+      case 'murab_mabni':
+        return 'معرب ومبني';
+      case 'ishara':
+        return 'أسماء الإشارة';
+      case 'extract':
+        return 'استخرج الخبر ونوعه';
+      case 'five_verbs':
+        return 'الأفعال الخمسة';
+      case 'ortho':
+        return 'إملاء';
+      case 'apply':
+      default:
+        return 'تطبيق واستخراج';
+    }
+  }
+
+  /// Interactive multiple-choice options used in Quiz mode for both direct
+  /// `choice` questions and official exam-style `open` questions.
+  List<String> get interactiveOptions {
+    if (kind == QuestionKind.choice && options.isNotEmpty) {
+      return options;
+    }
+    if (quizOptions.isNotEmpty) {
+      return quizOptions;
+    }
+    return const <String>[];
+  }
+
+  /// Correct option index for [interactiveOptions], or `null` when unavailable.
+  int? get interactiveAnswerIndex {
+    if (kind == QuestionKind.choice) {
+      return answerIndex;
+    }
+    if (quizOptions.isNotEmpty) {
+      return quizAnswerIndex;
+    }
+    return null;
+  }
+
+  bool get hasInteractiveChoices {
+    final opts = interactiveOptions;
+    final idx = interactiveAnswerIndex;
+    return opts.isNotEmpty && idx != null && idx >= 0 && idx < opts.length;
+  }
 
   String get displayAnswer {
     switch (kind) {

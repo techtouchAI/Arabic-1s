@@ -188,11 +188,13 @@ class _SavedExamCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final paper = saved.paper;
-    final balanced = paper.grammarBalanced && paper.orthographyBalanced;
     final details = <String>[
       if (paper.header.schoolName.trim().isNotEmpty)
         paper.header.schoolName.trim(),
-      'المجموع ${toArabicDigits(paper.totalDegree)} درجة',
+      'المجموع ${toArabicDigits(paper.totalDegree)} درجة '
+          '(${toArabicDigits(paper.composition.degree)} + '
+          '${toArabicDigits(paper.effectiveGrammarDegree)} + '
+          '${toArabicDigits(paper.effectiveOrthographyDegree)})',
     ].join(' • ');
 
     return Material(
@@ -233,15 +235,6 @@ class _SavedExamCard extends StatelessWidget {
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
-                    if (!balanced) ...<Widget>[
-                      const SizedBox(height: 2),
-                      Text(
-                        'تنبيه: راجع مجموع درجات الأفرع',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.error,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

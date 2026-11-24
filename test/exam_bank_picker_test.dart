@@ -103,6 +103,23 @@ void main() {
       expect(ExamBankPicker.inferGrammarStyle('أعرب ما تحته خط :'), 'irab');
       expect(ExamBankPicker.inferGrammarStyle('اختر الإجابة الصحيحة :'), 'mcq');
       expect(ExamBankPicker.inferGrammarStyle('ما الفرق بين الجملتين :'), 'difference');
+      expect(
+        ExamBankPicker.inferGrammarStyle(
+          'ميّز بين الأسماء المعربة والأسماء المبنية فيما تحته خط :',
+        ),
+        'murab_mabni',
+      );
+      expect(
+        ExamBankPicker.inferGrammarStyle(
+          'عيّن أسماء الإشارة والمشار إليه في النصوص الآتية :',
+        ),
+        'ishara',
+      );
+      expect(
+        ExamBankPicker.inferGrammarStyle('هات الأفعال الخمسة للفعل (يكتب) :'),
+        'five_verbs',
+      );
+      expect(ExamBankPicker.inferGrammarStyle('استخرج الخبر ونوعه :'), 'extract');
       expect(ExamBankPicker.inferGrammarStyle('أجب عما يأتي :'), isNull);
     });
 
@@ -285,38 +302,41 @@ void main() {
     expect(find.byKey(const ValueKey<String>('preview-zoom-fit')), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('preview-zoom-reset')), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('preview-fullscreen')), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey<String>('preview-zoom-label'))).data,
-      '١٠٠٪',
-    );
+    expect(find.byKey(const ValueKey<String>('preview-download-image')), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('preview-zoom-label')), findsNothing);
+    expect(find.textContaining('معاينة تقريبية'), findsNothing);
+
+    double currentScale() {
+      final viewer = tester.widget<InteractiveViewer>(
+        find.byKey(const ValueKey<String>('preview-viewer')),
+      );
+      return viewer.transformationController!.value.storage[0];
+    }
+
+    expect(currentScale(), closeTo(1.0, 0.001));
 
     await tester.tap(find.byKey(const ValueKey<String>('preview-zoom-in')));
     await _settle(tester);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey<String>('preview-zoom-label'))).data,
-      '١٢٥٪',
-    );
+    expect(currentScale(), closeTo(1.25, 0.001));
 
     await tester.tap(find.byKey(const ValueKey<String>('preview-zoom-out')));
     await _settle(tester);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey<String>('preview-zoom-label'))).data,
-      '١٠٠٪',
-    );
+    expect(currentScale(), closeTo(1.0, 0.001));
 
     await tester.tap(find.byKey(const ValueKey<String>('preview-zoom-in')));
     await _settle(tester);
     await tester.tap(find.byKey(const ValueKey<String>('preview-zoom-reset')));
     await _settle(tester);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey<String>('preview-zoom-label'))).data,
-      '١٠٠٪',
-    );
+    expect(currentScale(), closeTo(1.0, 0.001));
 
     await tester.tap(find.byKey(const ValueKey<String>('preview-fullscreen')));
     await _settle(tester);
     expect(
       find.byKey(const ValueKey<String>('preview-fullscreen-viewer')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('preview-fullscreen-download-image')),
       findsOneWidget,
     );
     // `byTooltip` uniquely targets the fullscreen AppBar close (the

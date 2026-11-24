@@ -8,6 +8,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/local/question_pdf.dart';
 import '../../domain/models/question_print_settings.dart';
+import '../../domain/services/exam_bank_picker.dart';
 import '../../domain/services/question_print_plan.dart';
 import '../state/app_state.dart';
 import '../widgets/text_scale_controls.dart';
@@ -28,6 +29,7 @@ class QuestionPrintScreen extends StatefulWidget {
 
 class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
   Set<String> _selectedIds = <String>{};
+  Set<String> _selectedStyles = ExamBankPicker.unitQuestionStyles.toSet();
   String? _selectionPart;
   bool _initialized = false;
   bool _printing = false;
@@ -48,6 +50,7 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
       _selectionPart = state.activePart.id;
       _selectedIds =
           printableUnits(state.partUnits).map((unit) => unit.id).toSet();
+      _selectedStyles = ExamBankPicker.unitQuestionStyles.toSet();
       _initialized = true;
     }
   }
@@ -106,6 +109,7 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
     final plan = QuestionPrintPlan.fromSelection(
       units,
       _selectedIds,
+      allowedExamStyles: _selectedStyles,
       settings: settings ?? const QuestionPrintSettings(),
     );
 
@@ -133,7 +137,7 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     ),
                   ),
                   child: Text(
-                    'اختر وحدة أو أكثر من ${state.partTitle} لطباعة أسئلة الصح والخطأ والاختيارات والأسئلة المقالية بتنسيق A4 جاهز للطباعة أو الحفظ بصيغة PDF.',
+                    'اختر وحدة أو أكثر وأنماط الأسئلة الرسمية من ${state.partTitle} لطباعة بنك الأسئلة المطابق لنماذج الأسئلة الوزارية بتنسيق A4 جاهز للطباعة أو الحفظ بصيغة PDF.',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -145,6 +149,46 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     message: 'اختر جزءاً دراسياً يحتوي على وحدات.',
                   )
                 else ...<Widget>[
+                  SectionHeader(
+                    title: 'أنماط الأسئلة الرسمية',
+                    accent: scheme.primary,
+                  ),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: <Widget>[
+                      FilterChip(
+                        key: const ValueKey<String>('print-style-all'),
+                        label: const Text('كل الأنماط'),
+                        selected: _selectedStyles.length ==
+                            ExamBankPicker.unitQuestionStyles.length,
+                        onSelected: _printing
+                            ? null
+                            : (bool sel) => setState(() {
+                                  _selectedStyles = sel
+                                      ? ExamBankPicker.unitQuestionStyles
+                                          .toSet()
+                                      : <String>{};
+                                }),
+                      ),
+                      for (final style in ExamBankPicker.unitQuestionStyles)
+                        FilterChip(
+                          key: ValueKey<String>('print-style-$style'),
+                          label: Text(ExamBankPicker.grammarStyleLabel(style)),
+                          selected: _selectedStyles.contains(style),
+                          onSelected: _printing
+                              ? null
+                              : (bool sel) => setState(() {
+                                    if (sel) {
+                                      _selectedStyles.add(style);
+                                    } else {
+                                      _selectedStyles.remove(style);
+                                    }
+                                  }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
                   SectionHeader(
                     title: 'اختر الوحدات (${state.partTitle})',
                     accent: scheme.secondary,

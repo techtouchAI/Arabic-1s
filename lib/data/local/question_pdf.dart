@@ -83,110 +83,66 @@ abstract final class QuestionPrinter {
         build: (pw.Context ctx) {
           final widgets = <pw.Widget>[];
 
-          void addSection(
-            String heading,
-            List<Question> items,
-            pw.Widget Function(int idx, Question q) itemBuilder,
-          ) {
-            if (items.isEmpty) {
-              return;
+          pw.Widget underlinedPdfText(String text, pw.TextStyle style) {
+            final segments = parseUnderlinedSegments(text);
+            return pw.RichText(
+              textDirection: pw.TextDirection.rtl,
+              text: pw.TextSpan(
+                style: style,
+                children: <pw.InlineSpan>[
+                  for (final seg in segments)
+                    pw.TextSpan(
+                      text: seg.text,
+                      style: seg.underlined
+                          ? style.copyWith(
+                              decoration: pw.TextDecoration.underline,
+                            )
+                          : null,
+                    ),
+                ],
+              ),
+            );
+          }
+
+          for (final section in plan.sections) {
+            if (section.questions.isEmpty) {
+              continue;
             }
             widgets.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.only(top: 10, bottom: 6),
-                child: pw.Text(heading, style: sectionStyle),
+                child: pw.Text(section.heading, style: sectionStyle),
               ),
             );
-            for (var i = 0; i < items.length; i++) {
-              widgets.add(itemBuilder(i + 1, items[i]));
+            for (var i = 0; i < section.questions.length; i++) {
+              final q = section.questions[i];
+              final numberPrefix = '${toArabicDigits(i + 1)}- ';
+              final promptText = q.kind == QuestionKind.choice &&
+                      q.options.isNotEmpty
+                  ? '$numberPrefix${q.prompt.trim()} ( ${q.options.join(' – ')} )'
+                  : '$numberPrefix${q.prompt.trim()}';
+              widgets.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 8),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: <pw.Widget>[
+                      underlinedPdfText(promptText, boldStyle),
+                      if (plan.settings.includeAnswers &&
+                          q.displayAnswer.trim().isNotEmpty)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(right: 12, top: 2),
+                          child: underlinedPdfText(
+                            'الجواب: ${q.displayAnswer}',
+                            baseStyle,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
             }
           }
-
-          addSection(
-            'أولاً: أسئلة الصح والخطأ',
-            plan.trueFalseQuestions,
-            (int idx, Question q) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 6),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: <pw.Widget>[
-                  pw.Text(
-                    '${toArabicDigits(idx)}- ${q.prompt}',
-                    style: boldStyle,
-                  ),
-                  if (plan.settings.includeAnswers)
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 12, top: 2),
-                      child: pw.Text(
-                        'الجواب: ${q.displayAnswer}',
-                        style: baseStyle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-
-          addSection(
-            'ثانياً: أسئلة الاختيار من متعدد',
-            plan.choiceQuestions,
-            (int idx, Question q) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 8),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: <pw.Widget>[
-                  pw.Text(
-                    '${toArabicDigits(idx)}- ${q.prompt}',
-                    style: boldStyle,
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(right: 12, top: 2),
-                    child: pw.Wrap(
-                      spacing: 14,
-                      runSpacing: 3,
-                      children: <pw.Widget>[
-                        for (var o = 0; o < q.options.length; o++)
-                          pw.Text('(${_arabicLetter(o)}) ${q.options[o]}', style: baseStyle),
-                      ],
-                    ),
-                  ),
-                  if (plan.settings.includeAnswers)
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 12, top: 2),
-                      child: pw.Text(
-                        'الجواب الصحيح: ${q.displayAnswer}',
-                        style: boldStyle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-
-          addSection(
-            'ثالثاً: الأسئلة المقالية والتطبيقية',
-            plan.openQuestions,
-            (int idx, Question q) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 8),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: <pw.Widget>[
-                  pw.Text(
-                    '${toArabicDigits(idx)}- ${q.prompt}',
-                    style: boldStyle,
-                  ),
-                  if (plan.settings.includeAnswers)
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 12, top: 2),
-                      child: pw.Text(
-                        'الجواب: ${q.displayAnswer}',
-                        style: baseStyle,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
 
           return widgets;
         },
@@ -202,10 +158,5 @@ abstract final class QuestionPrinter {
       format: PdfPageFormat.a4,
       onLayout: (_) => buildPdfBytes(plan, partTitle),
     );
-  }
-
-  static String _arabicLetter(int index) {
-    const letters = <String>['أ', 'ب', 'ج', 'د', 'هـ'];
-    return index < letters.length ? letters[index] : '${index + 1}';
   }
 }

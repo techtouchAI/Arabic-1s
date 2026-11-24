@@ -89,33 +89,177 @@ class BankPickOutcome {
 /// by part, grammar style, owning unit and free text — the teacher stays
 /// free to choose any item for any branch.
 abstract final class ExamBankPicker {
-  /// Grammar styles understood by the bank, in display order.
+  /// Grammar styles understood by the bank, in display order, matching
+  /// official Iraqi First Intermediate examination papers.
   static const List<String> grammarStyles = <String>[
     'apply',
     'irab',
     'mcq',
     'difference',
-    'taqwim',
+    'murab_mabni',
+    'ishara',
     'extract',
+    'five_verbs',
+  ];
+
+  /// Orthography styles understood by the bank, matching official papers.
+  static const List<String> orthographyStyles = <String>[
+    'ortho_rule',
+    'sun_moon',
+    'tanween_reason',
+    'ortho_correct',
+  ];
+
+  /// Unit question styles available in the composer bank picker.
+  static const List<String> unitQuestionStyles = <String>[
+    'apply',
+    'irab',
+    'mcq',
+    'difference',
+    'murab_mabni',
+    'ishara',
+    'extract',
+    'five_verbs',
+    'ortho',
   ];
 
   /// Short Arabic label for a grammar [style] id.
   static String grammarStyleLabel(String style) {
     switch (style) {
       case 'irab':
-        return 'إعراب';
+        return 'أعرب ما تحته خط';
       case 'mcq':
         return 'اختيارات';
       case 'difference':
-        return 'الفرق بين الجملتين';
-      case 'taqwim':
-        return 'تقويم اللسان';
+        return 'ما الفرق بين الجملتين';
+      case 'murab_mabni':
+        return 'معرب ومبني';
+      case 'ishara':
+        return 'أسماء الإشارة';
       case 'extract':
-        return 'استخراج الخبر';
+        return 'استخرج الخبر ونوعه';
+      case 'five_verbs':
+        return 'الأفعال الخمسة';
+      case 'ortho':
+        return 'إملاء';
       case 'apply':
       default:
         return 'تطبيق واستخراج';
     }
+  }
+
+  /// Short Arabic label for an orthography [style] id.
+  static String orthographyStyleLabel(String style) {
+    switch (style) {
+      case 'sun_moon':
+        return 'اللام الشمسية والقمرية';
+      case 'tanween_reason':
+        return 'امتناع التنوين';
+      case 'ortho_correct':
+        return 'تصحيح الخطأ الإملائي';
+      case 'ortho_rule':
+      default:
+        return 'قواعد الإملاء والتعاريف';
+    }
+  }
+
+  /// Canonical branch stem for a grammar [style] when creating/replacing a branch.
+  static String grammarBranchPrompt(String style) {
+    switch (style) {
+      case 'irab':
+        return 'أعرب ما تحته خط :';
+      case 'mcq':
+        return 'اختر الإجابة الصحيحة من بين الأقواس :';
+      case 'difference':
+        return 'ما الفرق بين الجملتين المتقابلتين :';
+      case 'murab_mabni':
+        return 'ميّز بين الأسماء المعربة والأسماء المبنية فيما تحته خط :';
+      case 'ishara':
+        return 'عيّن أسماء الإشارة والمشار إليه في الجمل الآتية :';
+      case 'extract':
+        return 'استخرج الخبر من الجمل الآتية وبيّن نوعه :';
+      case 'five_verbs':
+        return 'هاتِ الأفعال الخمسة للأفعال الآتية :';
+      case 'apply':
+      default:
+        return 'أجب عمّا يأتي :';
+    }
+  }
+
+  /// Canonical item layout for a grammar [style] when creating/replacing a branch.
+  static ExamItemLayout grammarBranchLayout(String style) {
+    switch (style) {
+      case 'irab':
+      case 'extract':
+      case 'five_verbs':
+        return ExamItemLayout.inline;
+      case 'murab_mabni':
+        return ExamItemLayout.prose;
+      case 'mcq':
+      case 'difference':
+      case 'ishara':
+      case 'apply':
+      default:
+        return ExamItemLayout.vertical;
+    }
+  }
+
+  /// Builds a [BankSelection] from a [GrammarBankItem] with official branch
+  /// stem and layout when applied as a whole branch or question.
+  static BankSelection selectionForGrammarItem(GrammarBankItem item) {
+    return BankSelection(
+      text: item.text,
+      prompt: grammarBranchPrompt(item.style),
+      items: <String>[item.text],
+      degree: item.defaultDegree,
+      layout: grammarBranchLayout(item.style),
+      title: item.promptGroup,
+    );
+  }
+
+  /// Builds a [BankSelection] from a [UnitQuestionEntry] aligned with
+  /// official exam question formatting.
+  static BankSelection selectionForUnitQuestion(UnitQuestionEntry entry) {
+    final q = entry.question;
+    final itemText = unitQuestionAsExamText(q);
+    final style = q.effectiveExamStyle;
+    if (q.kind == QuestionKind.choice || style == 'mcq') {
+      return BankSelection(
+        text: itemText,
+        prompt: grammarBranchPrompt('mcq'),
+        items: <String>[itemText],
+        layout: ExamItemLayout.vertical,
+        title: entry.unit.displayTitle,
+      );
+    }
+    if (style == 'ortho') {
+      return BankSelection(
+        text: itemText,
+        prompt: q.prompt.trim(),
+        items: const <String>[],
+        layout: ExamItemLayout.prose,
+        title: entry.unit.displayTitle,
+      );
+    }
+    final colonIdx = q.prompt.indexOf(':');
+    final canSplit = colonIdx > 0 &&
+        colonIdx < 48 &&
+        (style == 'irab' ||
+            style == 'difference' ||
+            style == 'murab_mabni' ||
+            style == 'ishara' ||
+            style == 'extract' ||
+            style == 'five_verbs');
+    final strippedBody = canSplit
+        ? q.prompt.substring(colonIdx + 1).trim()
+        : q.prompt.trim();
+    return BankSelection(
+      text: strippedBody.isNotEmpty ? strippedBody : itemText,
+      prompt: grammarBranchPrompt(style),
+      items: <String>[strippedBody.isNotEmpty ? strippedBody : itemText],
+      layout: grammarBranchLayout(style),
+      title: entry.unit.displayTitle,
+    );
   }
 
   /// Infers the bank [style] a branch prompt asks for, or `null` when the
@@ -126,6 +270,10 @@ abstract final class ExamBankPicker {
   /// [GrammarBankItem.styleFromText] — the single classification source.
   static String? inferGrammarStyle(String prompt) =>
       GrammarBankItem.styleFromText(prompt);
+
+  /// Infers the orthography [style] of a branch prompt.
+  static String inferOrthographyStyle(String prompt) =>
+      OrthographyBankItem.styleFromText(prompt);
 
   static bool _matchesQuery(String query, Iterable<String> haystacks) {
     final q = query.trim();
@@ -169,15 +317,19 @@ abstract final class ExamBankPicker {
     }).toList(growable: false);
   }
 
-  /// Orthography bank items filtered by [part], [unitId] and [query].
+  /// Orthography bank items filtered by [part], [style], [unitId] and [query].
   static List<OrthographyBankItem> filterOrthographyItems(
     ExamBank bank, {
     String? part,
+    String? style,
     String? unitId,
     String query = '',
   }) {
     return bank.orthographyItems.where((item) {
       if (part != null && item.part != part) {
+        return false;
+      }
+      if (style != null && item.style != style) {
         return false;
       }
       if (unitId != null && item.unitId != unitId) {
@@ -215,7 +367,7 @@ abstract final class ExamBankPicker {
   }
 
   /// All per-unit questions flattened in curriculum order, optionally
-  /// filtered by [part], [unitId], [kind] and [query].
+  /// filtered by [part], [unitId], [kind], [examStyle] and [query].
   ///
   /// Units without questions (intro / orthography summary) contribute
   /// nothing; the picker shows an empty state for them instead of failing.
@@ -224,6 +376,7 @@ abstract final class ExamBankPicker {
     String? part,
     String? unitId,
     QuestionKind? kind,
+    String? examStyle,
     String query = '',
   }) {
     final result = <UnitQuestionEntry>[];
@@ -240,9 +393,13 @@ abstract final class ExamBankPicker {
         if (kind != null && question.kind != kind) {
           continue;
         }
+        if (examStyle != null && question.effectiveExamStyle != examStyle) {
+          continue;
+        }
         if (!_matchesQuery(query, <String>[
           question.prompt,
           question.id,
+          question.examStyleLabel,
           unit.displayTitle,
           ...question.options,
         ])) {

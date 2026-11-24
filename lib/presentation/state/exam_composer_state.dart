@@ -161,6 +161,12 @@ class ExamComposerController extends ChangeNotifier {
       return pickRandom(src, count).map((g) => g.text).toList(growable: false);
     }
 
+    // 3. Orthography pool for smart generation
+    final oPool = examBank.orthographyItems
+        .where((o) => matchPart(o.part))
+        .toList(growable: false);
+    final effectiveO = oPool.isNotEmpty ? oPool : examBank.orthographyItems;
+
     // Use the source papers as structural blueprints, rather than inventing a
     // second order/mark distribution that diverges from the Word references.
     final blueprints = examBank.officialTemplates.where((t) =>
@@ -169,16 +175,25 @@ class ExamComposerController extends ChangeNotifier {
       final blueprint = pickRandom(blueprints, 1).single;
       ExamQuestionSection generateSection(bool grammar) {
         final base = grammar ? blueprint.grammar : blueprint.orthography;
-        return base.copyWith(questions: <ExamQuestionBlock>[
+        return base.withQuestions(<ExamQuestionBlock>[
           for (var qi = 0; qi < base.questions.length; qi++)
             base.questions[qi].copyWith(branches: <ExamBranch>[
               for (var bi = 0; bi < base.questions[qi].branches.length; bi++)
-                _generateBlueprintBranch(
-                  base.questions[qi].branches[bi],
-                  blueprints.map((t) => grammar ? t.grammar : t.orthography),
-                  qi, bi,
-                  grammar ? effectiveG : const <GrammarBankItem>[],
-                ),
+                grammar
+                    ? _generateBlueprintBranch(
+                        base.questions[qi].branches[bi],
+                        blueprints.map((t) => t.grammar),
+                        qi,
+                        bi,
+                        effectiveG,
+                      )
+                    : _generateOrthographyBlueprintBranch(
+                        base.questions[qi].branches[bi],
+                        blueprints.map((t) => t.orthography),
+                        qi,
+                        bi,
+                        effectiveO,
+                      ),
             ]),
         ]);
       }
@@ -238,7 +253,7 @@ class ExamComposerController extends ChangeNotifier {
               degree: 10,
               items: <String>[
                 ...byStyle('extract', 3),
-                ...byStyle('taqwim', 3),
+                ...byStyle('ishara', 3),
               ],
             ),
           ],
@@ -246,12 +261,9 @@ class ExamComposerController extends ChangeNotifier {
       ],
     );
 
-    // 3. Orthography (1 question, 3 branches = 5 + 5 + 5 = 15 marks)
-    final oPool = examBank.orthographyItems
-        .where((o) => matchPart(o.part))
-        .toList(growable: false);
+    // Orthography fallback (1 question, 3 branches = 5 + 5 + 5 = 15 marks)
     final chosenOrtho = pickRandom(
-      oPool.length >= 3 ? oPool : examBank.orthographyItems,
+      effectiveO.length >= 3 ? effectiveO : examBank.orthographyItems,
       3,
     );
     const branchLetters = <String>['أ', 'ب', 'ج'];
@@ -276,13 +288,13 @@ class ExamComposerController extends ChangeNotifier {
         prompt: 'اكتب في أحد الموضوعين الآتيين :',
         topics: chosenComp,
       ),
-      grammar: grammarSection,
-      orthography: ExamQuestionSection(
+      grammar: grammarSection.withQuestions(grammarSection.questions),
+      orthography: const ExamQuestionSection(
         degree: 15,
-        questions: <ExamQuestionBlock>[
-          ExamQuestionBlock(number: 1, branches: orthoBranches),
-        ],
-      ),
+        questions: <ExamQuestionBlock>[],
+      ).withQuestions(<ExamQuestionBlock>[
+        ExamQuestionBlock(number: 1, branches: orthoBranches),
+      ]),
       typography: typography,
     );
   }
@@ -311,15 +323,93 @@ class ExamComposerController extends ChangeNotifier {
         : candidates[_rng.nextInt(candidates.length)];
     final prompt = selected.prompt;
     final style = ExamBankPicker.inferGrammarStyle(prompt);
-    // Never silently fill a parsing/MCQ slot with an unrelated question type.
-    final matching = bank.where((item) => item.style == style).toList()
+    if (style == null && selected.itemLayout == ExamItemLayout.prose) {
+      return selected;
+    }
+    final effectiveStyle = style ?? 'apply';
+    // Fill each slot only from matching question styles so structure and
+    // wording stay 100% faithful to the official examination templates.
+    final matching = bank.where((item) => item.style == effectiveStyle).toList()
       ..shuffle(_rng);
-    return style != null && selected.items.isNotEmpty &&
-            matching.length >= selected.items.length
+    return selected.items.isNotEmpty && matching.length >= selected.items.length
         ? selected.copyWith(
-            items: matching.take(selected.items.length).map((e) => e.text).toList(),
+            items: matching
+                .take(selected.items.length)
+                .map((e) => e.text)
+                .toList(growable: false),
           )
         : selected;
+  }
+
+  ExamBranch _generateOrthographyBlueprintBranch(
+    ExamBranch base,
+    Iterable<ExamQuestionSection> sources,
+    int questionIndex,
+    int branchIndex,
+    List<OrthographyBankItem> bank,
+  ) {
+    final candidates = <ExamBranch>[];
+    for (final section in sources) {
+      if (questionIndex >= section.questions.length) continue;
+      final branches = section.questions[questionIndex].branches;
+      if (branchIndex >= branches.length) continue;
+      final branch = branches[branchIndex];
+      if (branch.degree == base.degree) {
+        candidates.add(branch);
+      }
+    }
+    final selected = candidates.isEmpty
+        ? base
+        : candidates[_rng.nextInt(candidates.length)];
+    final style = OrthographyBankItem.styleFromText(selected.prompt);
+    final matching = bank
+        .where(
+          (item) =>
+              item.style == style &&
+              item.itemLayout == selected.itemLayout &&
+              (selected.items.isEmpty
+                  ? item.items.isEmpty
+                  : item.items.length == selected.items.length),
+        )
+        .toList()
+      ..shuffle(_rng);
+    if (matching.isEmpty || _rng.nextBool()) {
+      return selected;
+    }
+    final picked = matching.first;
+    return selected.copyWith(
+      prompt: picked.prompt,
+      items: List<String>.from(picked.items),
+      itemLayout: picked.itemLayout,
+    );
+  }
+
+  void _replaceSectionQuestions({
+    required bool isGrammar,
+    required List<ExamQuestionBlock> questions,
+  }) {
+    final section = isGrammar ? _paper.grammar : _paper.orthography;
+    final nextSection = section.withQuestions(questions);
+    _paper = isGrammar
+        ? _paper.copyWith(grammar: nextSection)
+        : _paper.copyWith(orthography: nextSection);
+    notifyListeners();
+  }
+
+  static List<ExamBranch> _reletterBranches(List<ExamBranch> branches) {
+    if (branches.isEmpty) {
+      return branches;
+    }
+    if (branches.length == 1) {
+      return <ExamBranch>[branches.first.copyWith(branch: '')];
+    }
+    const letters = <String>['أ', 'ب', 'ج', 'د', 'هـ', 'و'];
+    return <ExamBranch>[
+      for (var i = 0; i < branches.length; i++)
+        branches[i].copyWith(
+          branch: i < letters.length ? letters[i] : '${i + 1}',
+        ),
+    ];
   }
 
   void updateHeader(ExamHeader header) {
@@ -361,11 +451,7 @@ class ExamComposerController extends ChangeNotifier {
     final branches = List<ExamBranch>.from(q.branches);
     branches[branchIndex] = updated;
     questions[questionIndex] = q.copyWith(branches: branches);
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   void addQuestionBlock({required bool isGrammar}) {
@@ -384,11 +470,7 @@ class ExamComposerController extends ChangeNotifier {
         ],
       ),
     );
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   void removeQuestionBlock({
@@ -404,11 +486,7 @@ class ExamComposerController extends ChangeNotifier {
     for (var i = 0; i < questions.length; i++) {
       questions[i] = questions[i].copyWith(number: i + 1);
     }
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   void addBranchToQuestion({
@@ -418,27 +496,19 @@ class ExamComposerController extends ChangeNotifier {
     final section = isGrammar ? _paper.grammar : _paper.orthography;
     final questions = List<ExamQuestionBlock>.from(section.questions);
     final q = questions[questionIndex];
-    const letters = <String>['أ', 'ب', 'ج', 'د'];
-    final branches = List<ExamBranch>.from(q.branches);
-    if (branches.length == 1 && branches.first.branch.isEmpty) {
-      branches[0] = branches[0].copyWith(branch: 'أ');
-    }
-    final nextLetter =
-        branches.length < letters.length ? letters[branches.length] : 'هـ';
-    branches.add(
-      ExamBranch(
-        branch: nextLetter,
-        prompt: 'أجب عما يأتي :',
-        degree: 5,
-        items: const <String>['النقطة الأولى'],
-      ),
+    final branches = List<ExamBranch>.from(q.branches)
+      ..add(
+        const ExamBranch(
+          branch: '',
+          prompt: 'أجب عما يأتي :',
+          degree: 5,
+          items: <String>['النقطة الأولى'],
+        ),
+      );
+    questions[questionIndex] = q.copyWith(
+      branches: _reletterBranches(branches),
     );
-    questions[questionIndex] = q.copyWith(branches: branches);
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   void removeBranchFromQuestion({
@@ -453,12 +523,10 @@ class ExamComposerController extends ChangeNotifier {
       return;
     }
     final branches = List<ExamBranch>.from(q.branches)..removeAt(branchIndex);
-    questions[questionIndex] = q.copyWith(branches: branches);
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    questions[questionIndex] = q.copyWith(
+      branches: _reletterBranches(branches),
+    );
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   /// Replaces the content of one branch with bank content, keeping its
@@ -513,28 +581,20 @@ class ExamComposerController extends ChangeNotifier {
     }
     final questions = List<ExamQuestionBlock>.from(section.questions);
     final q = questions[questionIndex];
-    const letters = <String>['أ', 'ب', 'ج', 'د'];
-    final branches = List<ExamBranch>.from(q.branches);
-    if (branches.length == 1 && branches.first.branch.isEmpty) {
-      branches[0] = branches[0].copyWith(branch: 'أ');
-    }
-    final nextLetter =
-        branches.length < letters.length ? letters[branches.length] : 'هـ';
-    branches.add(
-      ExamBranch(
-        branch: nextLetter,
-        prompt: prompt,
-        degree: degree,
-        items: List<String>.from(items),
-        itemLayout: itemLayout,
-      ),
+    final branches = List<ExamBranch>.from(q.branches)
+      ..add(
+        ExamBranch(
+          branch: '',
+          prompt: prompt,
+          degree: degree,
+          items: List<String>.from(items),
+          itemLayout: itemLayout,
+        ),
+      );
+    questions[questionIndex] = q.copyWith(
+      branches: _reletterBranches(branches),
     );
-    questions[questionIndex] = q.copyWith(branches: branches);
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   /// Appends a new question block holding a single branch built from bank
@@ -563,11 +623,7 @@ class ExamComposerController extends ChangeNotifier {
         ],
       ),
     );
-    final nextSection = section.copyWith(questions: questions);
-    _paper = isGrammar
-        ? _paper.copyWith(grammar: nextSection)
-        : _paper.copyWith(orthography: nextSection);
-    notifyListeners();
+    _replaceSectionQuestions(isGrammar: isGrammar, questions: questions);
   }
 
   /// Appends one composition topic from the bank (or typed by hand).
