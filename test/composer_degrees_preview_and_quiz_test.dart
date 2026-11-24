@@ -354,7 +354,7 @@ void main() {
 
     test('ExamDocumentExporter.exportPng saves directly via Android MediaStore channel', () async {
       final content = loadTestContentSync();
-      final paper = content.examBank.templates.first.paper;
+      final paper = content.examBank.officialTemplates.first.paper;
       final samplePng = Uint8List.fromList(<int>[
         137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4,
       ]);
