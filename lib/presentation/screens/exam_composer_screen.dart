@@ -162,25 +162,28 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
                     spacing: AppSpacing.sm,
                     runSpacing: AppSpacing.xs,
                     children: <Widget>[
-                      SegmentedButton<int>(
-                        segments: const <ButtonSegment<int>>[
-                          ButtonSegment<int>(
-                            value: 0,
-                            icon: Icon(Icons.tune, size: 18),
-                            label: Text('إعداد الأسئلة'),
-                          ),
-                          ButtonSegment<int>(
-                            value: 1,
-                            icon: Icon(Icons.preview_outlined, size: 18),
-                            label: Text('معاينة ورقة A4'),
-                          ),
-                        ],
-                        selected: <int>{_tabIndex},
-                        onSelectionChanged: (Set<int> next) {
-                          if (next.isNotEmpty) {
-                            setState(() => _tabIndex = next.first);
-                          }
-                        },
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: SegmentedButton<int>(
+                          segments: const <ButtonSegment<int>>[
+                            ButtonSegment<int>(
+                              value: 0,
+                              icon: Icon(Icons.tune, size: 18),
+                              label: Text('إعداد الأسئلة'),
+                            ),
+                            ButtonSegment<int>(
+                              value: 1,
+                              icon: Icon(Icons.preview_outlined, size: 18),
+                              label: Text('معاينة ورقة A4'),
+                            ),
+                          ],
+                          selected: <int>{_tabIndex},
+                          onSelectionChanged: (Set<int> next) {
+                            if (next.isNotEmpty) {
+                              setState(() => _tabIndex = next.first);
+                            }
+                          },
+                        ),
                       ),
                       _DegreeSummaryBadge(paper: paper),
                     ],
@@ -225,18 +228,27 @@ class _ExamComposerScreenState extends State<ExamComposerScreen> {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      FilledButton.icon(
-                        key: const ValueKey<String>('export-docx-button'),
-                        onPressed: _exporting ? null : _exportPaper,
-                        icon: _exporting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.download_outlined, size: 20),
-                        label: Text(
-                          _exporting ? 'جاري التصدير...' : 'تصدير Word (.docx)',
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: FilledButton.icon(
+                            key: const ValueKey<String>('export-docx-button'),
+                            onPressed: _exporting ? null : _exportPaper,
+                            icon: _exporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.download_outlined, size: 20),
+                            label: Text(
+                              _exporting
+                                  ? 'جاري التصدير...'
+                                  : 'تصدير Word (.docx)',
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -891,7 +903,7 @@ class _CompositionEditor extends StatelessWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: SizedBox(
-              width: 96,
+              width: 108,
               child: _DegreeStepper(
                 degree: comp.degree,
                 onChanged: (d) =>
@@ -997,13 +1009,15 @@ class _QuestionBlockEditor extends StatelessWidget {
                   style: theme.textTheme.titleMedium,
                 ),
               ),
-              TextButton.icon(
-                onPressed: () => controller.addBranchToQuestion(
-                  isGrammar: isGrammar,
-                  questionIndex: questionIndex,
+              Flexible(
+                child: TextButton.icon(
+                  onPressed: () => controller.addBranchToQuestion(
+                    isGrammar: isGrammar,
+                    questionIndex: questionIndex,
+                  ),
+                  icon: const Icon(Icons.call_split, size: 17),
+                  label: const Text('إضافة فرع'),
                 ),
-                icon: const Icon(Icons.call_split, size: 17),
-                label: const Text('إضافة فرع'),
               ),
               if ((isGrammar
                           ? controller.paper.grammar.questions.length
@@ -1065,7 +1079,7 @@ class _BranchEditor extends StatelessWidget {
           children: <Widget>[
             if (branch.branch.isNotEmpty) Chip(label: Text('فرع ${branch.branch}')),
             SizedBox(
-              width: 92,
+              width: 108,
               child: _DegreeStepper(
                 degree: branch.degree,
                 onChanged: (int d) => controller.updateBranch(
@@ -2096,20 +2110,23 @@ class _LivePaperPreviewState extends State<_LivePaperPreview> {
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
-                  FilledButton.tonalIcon(
-                    key: const ValueKey<String>('preview-download-image'),
-                    onPressed: _savingImage ? null : _downloadAsImage,
-                    icon: _savingImage
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.image_outlined, size: 18),
-                    label: Text(
-                      _savingImage
-                          ? 'جاري تجهيز الصورة...'
-                          : 'تنزيل الورقة كصورة بأعلى دقة',
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey<String>('preview-download-image'),
+                      onPressed: _savingImage ? null : _downloadAsImage,
+                      icon: _savingImage
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_outlined, size: 18),
+                      label: Text(
+                        _savingImage
+                            ? 'جاري تجهيز الصورة...'
+                            : 'تنزيل الورقة كصورة بأعلى دقة',
+                      ),
                     ),
                   ),
                   Text(
@@ -2538,7 +2555,6 @@ class _DegreeStepper extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: <Widget>[
           InkWell(
             onTap: degree > 0 ? () => onChanged(degree - 1) : null,
@@ -2547,13 +2563,19 @@ class _DegreeStepper extends StatelessWidget {
               child: Icon(Icons.remove, size: 16),
             ),
           ),
-          InkWell(
-            onTap: () => _promptDirectDegree(context),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Text(
-                toArabicDigits(degree),
-                style: Theme.of(context).textTheme.titleSmall,
+          Expanded(
+            child: InkWell(
+              onTap: () => _promptDirectDegree(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    toArabicDigits(degree),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
               ),
             ),
           ),

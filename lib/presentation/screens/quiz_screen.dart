@@ -241,9 +241,15 @@ class _QuizScreenState extends State<QuizScreen> {
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: scheme.primaryContainer,
-                  child: Text(
-                    '${toArabicDigits(score.correct)}/${toArabicDigits(score.total)}',
-                    style: theme.textTheme.labelMedium,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '${toArabicDigits(score.correct)}/${toArabicDigits(score.total)}',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
                   ),
                 ),
                 title: Text(score.scopeLabel),
@@ -273,11 +279,12 @@ class _QuizScreenState extends State<QuizScreen> {
       children: <Widget>[
         const SizedBox(height: AppSpacing.md),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              'السؤال ${toArabicDigits(_currentIndex + 1)} من ${toArabicDigits(session.length)}',
-              style: theme.textTheme.labelLarge,
+            Expanded(
+              child: Text(
+                'السؤال ${toArabicDigits(_currentIndex + 1)} من ${toArabicDigits(session.length)}',
+                style: theme.textTheme.labelLarge,
+              ),
             ),
             TextButton(
               onPressed: () => setState(() => _activeSession = null),
