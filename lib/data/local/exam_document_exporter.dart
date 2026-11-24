@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -23,6 +24,9 @@ class ExamDocumentExporter {
   static const String docxMimeType =
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   static const String pngMimeType = 'image/png';
+  static const MethodChannel mediaStoreChannel = MethodChannel(
+    'com.techtouchai.bayan/media_store',
+  );
 
   static String _suggestedBaseName(ArabicExamPaper paper) {
     final sanitizedRound = paper.header.roundLine
@@ -90,9 +94,14 @@ class ExamDocumentExporter {
     ArabicExamPaper paper,
   ) async {
     final suggestedName = '${_suggestedBaseName(paper)}.png';
+    final platform = defaultTargetPlatform;
+    final isDesktop = !kIsWeb &&
+        (platform == TargetPlatform.windows ||
+            platform == TargetPlatform.linux ||
+            platform == TargetPlatform.macOS);
 
     // Desktop platforms (Windows / Linux / macOS): native Save-As file dialog.
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (isDesktop) {
       final FileSaveLocation? location = await getSaveLocation(
         suggestedName: suggestedName,
         acceptedTypeGroups: const <XTypeGroup>[
@@ -118,7 +127,37 @@ class ExamDocumentExporter {
       );
     }
 
-    // Android / mobile: write to temporary file and open native system share sheet.
+    // Android 10+: save directly to device Gallery (Pictures/Bayan) with zero permissions.
+    if (!kIsWeb && platform == TargetPlatform.android) {
+      try {
+        final String? savedPath = await mediaStoreChannel.invokeMethod<String>(
+          'saveImageToGallery',
+          <String, Object>{
+            'bytes': pngBytes,
+            'fileName': suggestedName,
+          },
+        );
+        if (savedPath != null && savedPath.isNotEmpty) {
+          return ExportOutcome(
+            kind: ExportOutcomeKind.savedToFile,
+            filePath: savedPath,
+          );
+        }
+      } on MissingPluginException {
+        // Fall through to system share sheet when native channel is unavailable.
+      } on PlatformException {
+        // Fall through to system share sheet if MediaStore is unavailable.
+      }
+    }
+
+    return sharePng(pngBytes, paper);
+  }
+
+  Future<ExportOutcome> sharePng(
+    Uint8List pngBytes,
+    ArabicExamPaper paper,
+  ) async {
+    final suggestedName = '${_suggestedBaseName(paper)}.png';
     final tempDir = await getTemporaryDirectory();
     final tempFile = File('${tempDir.path}/$suggestedName');
     await tempFile.writeAsBytes(pngBytes, flush: true);

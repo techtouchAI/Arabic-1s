@@ -1,7 +1,7 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -1829,6 +1829,74 @@ class _BankEmptyState extends StatelessWidget {
 /// Live preview sharing question order and spacing with the Word renderer.
 ///
 /// The A4 page sits in an [InteractiveViewer]: pinch with two fingers to
+@visibleForTesting
+Future<Uint8List> captureRepaintBoundaryPng(
+  RenderRepaintBoundary boundary, {
+  double preferredMaxPixelRatio = 4.0,
+}) async {
+  // Never read `boundary.debugNeedsPaint` outside an `assert`: in Flutter
+  // release/profile builds `assert` blocks are stripped and `debugNeedsPaint`
+  // throws `LateInitializationError: Local 'result' has not been initialized`.
+  var needsFrame = !boundary.hasSize;
+  assert(() {
+    needsFrame = needsFrame || boundary.debugNeedsPaint;
+    return true;
+  }());
+  if (needsFrame) {
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  final size = boundary.size;
+  final maxDim = math.max(size.width, size.height);
+  final candidates = <double>{
+    if (maxDim <= 0)
+      preferredMaxPixelRatio
+    else
+      math
+          .min(preferredMaxPixelRatio, 8192.0 / maxDim)
+          .clamp(1.0, preferredMaxPixelRatio),
+    if (maxDim > 0)
+      math
+          .min(preferredMaxPixelRatio, 4096.0 / maxDim)
+          .clamp(1.0, preferredMaxPixelRatio),
+    3.0,
+    2.0,
+    1.5,
+  }.toList()
+    ..sort((double a, double b) => b.compareTo(a));
+
+  Object? lastError;
+  for (var i = 0; i < candidates.length; i++) {
+    final ratio = candidates[i];
+    try {
+      final ui.Image image = await boundary.toImage(pixelRatio: ratio);
+      try {
+        final ByteData? byteData = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (byteData != null && byteData.lengthInBytes > 0) {
+          return byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          );
+        }
+      } finally {
+        image.dispose();
+      }
+    } catch (error) {
+      lastError = error;
+      if (i == 0) {
+        await WidgetsBinding.instance.endOfFrame;
+      }
+    }
+  }
+  throw StateError(
+    lastError == null
+        ? 'تعذّر ترميز صورة الورقة بصيغة PNG.'
+        : 'تعذّر توليد صورة الورقة: $lastError',
+  );
+}
+
 Future<void> _captureAndExportPaperImage({
   required BuildContext context,
   required GlobalKey boundaryKey,
@@ -1846,38 +1914,29 @@ Future<void> _captureAndExportPaperImage({
     }
     return;
   }
-  if (renderObject.debugNeedsPaint) {
-    await WidgetsBinding.instance.endOfFrame;
-  }
-  final size = renderObject.size;
-  final maxDim = math.max(size.width, size.height);
-  final pixelRatio = maxDim > 0
-      ? math.min(4.0, 8192.0 / maxDim).clamp(2.0, 4.0)
-      : 4.0;
 
-  final ui.Image image = await renderObject.toImage(pixelRatio: pixelRatio);
-  final Uint8List pngBytes;
-  try {
-    final ByteData? byteData = await image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    if (byteData == null) {
-      throw StateError('تعذّر ترميز صورة الورقة بصيغة PNG.');
-    }
-    pngBytes = byteData.buffer.asUint8List();
-  } finally {
-    image.dispose();
-  }
-
+  final Uint8List pngBytes = await captureRepaintBoundaryPng(renderObject);
   final exporter = onExportImage ?? const ExamDocumentExporter().exportPng;
   final outcome = await exporter(pngBytes, paper);
   if (!context.mounted) {
     return;
   }
   if (outcome.kind == ExportOutcomeKind.savedToFile) {
+    final bool offerShareAction = onExportImage == null &&
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('تم حفظ صورة الورقة بأعلى دقة: ${outcome.filePath}'),
+        action: offerShareAction
+            ? SnackBarAction(
+                label: 'مشاركة',
+                onPressed: () {
+                  const ExamDocumentExporter().sharePng(pngBytes, paper);
+                },
+              )
+            : null,
       ),
     );
   } else if (outcome.kind == ExportOutcomeKind.shared) {

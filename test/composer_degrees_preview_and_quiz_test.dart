@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:bayan/app.dart';
@@ -17,7 +17,9 @@ import 'package:bayan/presentation/screens/question_print_screen.dart';
 import 'package:bayan/presentation/screens/quiz_screen.dart';
 import 'package:bayan/presentation/screens/saved_exams_screen.dart';
 import 'package:bayan/presentation/state/exam_composer_state.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
@@ -324,6 +326,99 @@ void main() {
       final height = header.getUint32(4);
       expect(width, greaterThanOrEqualTo(3000));
       expect(height, greaterThanOrEqualTo(4000));
+
+      // Also verify fullscreen preview download button (preview-fullscreen-download-image)
+      exportedBytes = null;
+      await tester.tap(find.byKey(const ValueKey<String>('preview-fullscreen')));
+      await _settle(tester);
+
+      final fullscreenBtn = tester.widget<IconButton>(
+        find.byKey(const ValueKey<String>('preview-fullscreen-download-image')),
+      );
+      expect(fullscreenBtn.onPressed, isNotNull);
+
+      await tester.runAsync(() async {
+        fullscreenBtn.onPressed!();
+        for (var i = 0; i < 50 && exportedBytes == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+      });
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(exportedBytes, isNotNull);
+      expect(
+        exportedBytes!.sublist(0, 8),
+        equals(<int>[137, 80, 78, 71, 13, 10, 26, 10]),
+      );
+    });
+
+    test('ExamDocumentExporter.exportPng saves directly via Android MediaStore channel', () async {
+      final content = loadTestContentSync();
+      final paper = content.examBank.templates.first.paper;
+      final samplePng = Uint8List.fromList(<int>[
+        137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4,
+      ]);
+
+      MethodCall? capturedCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        ExamDocumentExporter.mediaStoreChannel,
+        (MethodCall call) async {
+          capturedCall = call;
+          final args = call.arguments as Map<Object?, Object?>;
+          return 'Pictures/Bayan/${args['fileName']}';
+        },
+      );
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+          ExamDocumentExporter.mediaStoreChannel,
+          null,
+        );
+        debugDefaultTargetPlatformOverride = null;
+      });
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final outcome = await const ExamDocumentExporter().exportPng(
+        samplePng,
+        paper,
+      );
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(capturedCall, isNotNull);
+      expect(capturedCall!.method, 'saveImageToGallery');
+      expect(outcome.kind, ExportOutcomeKind.savedToFile);
+      expect(outcome.filePath, startsWith('Pictures/Bayan/'));
+      expect(outcome.filePath, endsWith('.png'));
+    });
+
+    test('production code in lib/ never calls debug-only RenderObject getters outside assert', () {
+      // In Flutter release builds (`flutter build apk --release`), getters like
+      // `RenderObject.debugNeedsPaint` throw `LateInitializationError: Local 'result'
+      // has not been initialized` if invoked outside an `assert(...)` block.
+      final libDir = Directory('lib');
+      final dartFiles = libDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((File f) => f.path.endsWith('.dart'));
+      final forbiddenOutsideAssert = RegExp(
+        r'\.(debugNeedsPaint|debugNeedsLayout|debugDoingThisPaint|debugDoingThisLayout|debugNeedsCompositingBitsUpdate)\b',
+      );
+      for (final file in dartFiles) {
+        final source = file.readAsStringSync();
+        // Strip comments and assert(...) blocks, then ensure zero matches remain.
+        final withoutLineComments = source.replaceAll(RegExp(r'//.*'), '');
+        final withoutAsserts = withoutLineComments.replaceAll(
+          RegExp(r'assert\s*\(\s*\(\s*\)\s*\{[\s\S]*?\}\s*\(\s*\)\s*\)\s*;'),
+          '',
+        );
+        expect(
+          forbiddenOutsideAssert.hasMatch(withoutAsserts),
+          isFalse,
+          reason:
+              'Release-crashing debug getter found outside assert in ${file.path}',
+        );
+      }
     });
   });
 
