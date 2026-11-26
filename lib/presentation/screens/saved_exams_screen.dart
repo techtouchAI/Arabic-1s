@@ -5,24 +5,66 @@ import '../../core/utils/arabic_text.dart';
 import '../../core/widgets/app_page.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/local/exam_document_exporter.dart';
+import '../../data/local/saved_exam_backup_file.dart';
+import '../../data/local/saved_exam_store.dart';
 import '../../domain/models/saved_exam.dart';
 import '../state/app_state.dart';
 import '../state/saved_exam_library.dart';
 import 'exam_composer_screen.dart';
 
+/// Writes a backup JSON payload to a file; returns the export outcome.
+typedef ExportBackupCallback = Future<ExportOutcome> Function(String backupJson);
+
+/// Picks a backup file and returns its raw JSON, or `null` when cancelled.
+typedef PickBackupCallback = Future<String?> Function();
+
 /// «أسئلتي المحفوظة»: every exam paper the teacher created, autosaved by the
-/// composer, newest first.
-class SavedExamsScreen extends StatelessWidget {
-  const SavedExamsScreen({super.key, this.onExport});
+/// composer, newest first, with full-library backup export and restore.
+class SavedExamsScreen extends StatefulWidget {
+  const SavedExamsScreen({
+    super.key,
+    this.onExport,
+    this.onExportBackup,
+    this.onPickBackup,
+  });
 
   /// Overrides the Word exporter (used by tests); defaults to the real one.
   final ExportExamCallback? onExport;
+
+  /// Overrides the backup file writer (used by tests).
+  final ExportBackupCallback? onExportBackup;
+
+  /// Overrides the backup file picker (used by tests).
+  final PickBackupCallback? onPickBackup;
+
+  @override
+  State<SavedExamsScreen> createState() => _SavedExamsScreenState();
+}
+
+class _SavedExamsScreenState extends State<SavedExamsScreen> {
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
     final library = AppScope.of(context).savedExams;
     return Scaffold(
-      appBar: AppBar(title: const Text('أسئلتي المحفوظة')),
+      appBar: AppBar(
+        title: const Text('أسئلتي المحفوظة'),
+        actions: <Widget>[
+          IconButton(
+            key: const ValueKey<String>('saved-exams-backup-export'),
+            tooltip: 'إنشاء نسخة احتياطية',
+            onPressed: _busy ? null : () => _exportBackup(library),
+            icon: const Icon(Icons.backup_outlined),
+          ),
+          IconButton(
+            key: const ValueKey<String>('saved-exams-backup-import'),
+            tooltip: 'استعادة نسخة احتياطية',
+            onPressed: _busy ? null : () => _importBackup(library),
+            icon: const Icon(Icons.settings_backup_restore),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         key: const ValueKey<String>('saved-exams-new'),
         onPressed: () => _openComposer(context),
@@ -70,7 +112,7 @@ class SavedExamsScreen extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => ExamComposerScreen(
           savedExamId: savedId,
-          onExport: onExport,
+          onExport: widget.onExport,
         ),
       ),
     );
@@ -112,7 +154,7 @@ class SavedExamsScreen extends StatelessWidget {
     ScaffoldMessengerState messenger,
     SavedExamPaper saved,
   ) async {
-    final exporter = onExport ?? const ExamDocumentExporter().exportDocx;
+    final exporter = widget.onExport ?? const ExamDocumentExporter().exportDocx;
     try {
       final outcome = await exporter(saved.paper);
       switch (outcome.kind) {
@@ -167,6 +209,264 @@ class SavedExamsScreen extends StatelessWidget {
       ),
     );
     return confirmed ?? false;
+  }
+
+  Future<void> _exportBackup(SavedExamLibrary library) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (library.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('لا توجد أوراق محفوظة لإنشاء نسخة احتياطية منها.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final exporter =
+          widget.onExportBackup ?? const SavedExamBackupFileService().exportBackup;
+      final outcome = await exporter(library.buildBackupJson());
+      if (!mounted) {
+        return;
+      }
+      switch (outcome.kind) {
+        case ExportOutcomeKind.savedToFile:
+          messenger.showSnackBar(SnackBar(
+            content: Text('تم حفظ النسخة الاحتياطية بنجاح: ${outcome.filePath}'),
+          ));
+        case ExportOutcomeKind.shared:
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('تم تجهيز النسخة الاحتياطية للمشاركة.'),
+            ),
+          );
+        case ExportOutcomeKind.cancelled:
+          break;
+      }
+    } catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('تعذّر إنشاء النسخة الاحتياطية: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _importBackup(SavedExamLibrary library) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    String? raw;
+    try {
+      final picker =
+          widget.onPickBackup ?? const SavedExamBackupFileService().pickBackupJson;
+      raw = await picker();
+    } catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('تعذّرت قراءة ملف النسخة الاحتياطية: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+    if (!mounted || raw == null) {
+      return;
+    }
+    List<SavedExamPaper> imported;
+    try {
+      imported = SavedExamStore.decodeBackup(raw);
+    } on FormatException catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+      return;
+    }
+    if (imported.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('لم يتم العثور على أوراق صالحة في ملف النسخة الاحتياطية.'),
+        ),
+      );
+      return;
+    }
+    final exportedAt = SavedExamStore.backupExportedAt(raw);
+    final mode = await showDialog<BackupImportMode>(
+      context: context,
+      builder: (_) => _BackupImportDialog(
+        count: imported.length,
+        exportedAt: exportedAt,
+      ),
+    );
+    if (!mounted || mode == null) {
+      return;
+    }
+    final result = library.importBackupPapers(imported, mode: mode);
+    await library.flush();
+    if (!mounted) {
+      return;
+    }
+    if (library.lastWriteError != null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('تمت الاستعادة في الذاكرة لكن تعذّر الحفظ على الجهاز.'),
+        ),
+      );
+      return;
+    }
+    if (!result.hasChanges) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'كل الأوراق في النسخة أقدم من الموجودة على هذا الجهاز — لم يتم تغيير شيء.',
+          ),
+        ),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'تمت الاستعادة: ${toArabicDigits(result.added)} جديدة، '
+          '${toArabicDigits(result.updated)} محدّثة، '
+          '${toArabicDigits(result.skipped)} بدون تغيير.',
+        ),
+      ),
+    );
+  }
+}
+
+class _BackupImportDialog extends StatefulWidget {
+  const _BackupImportDialog({required this.count, required this.exportedAt});
+
+  final int count;
+  final DateTime? exportedAt;
+
+  @override
+  State<_BackupImportDialog> createState() => _BackupImportDialogState();
+}
+
+class _BackupImportDialogState extends State<_BackupImportDialog> {
+  BackupImportMode _mode = BackupImportMode.merge;
+
+  @override
+  Widget build(BuildContext context) {
+    final exportedAt = widget.exportedAt;
+    return AlertDialog(
+      title: const Text('استعادة نسخة احتياطية؟'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                'تحتوي النسخة على ${toArabicDigits(widget.count)} ورقة محفوظة'
+                '${exportedAt == null ? '' : ' • أُنشئت ${formatSavedTimestamp(exportedAt)}'}.',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _ImportModeOptionCard(
+                key: const ValueKey<String>('backup-import-merge'),
+                title: 'دمج مع الموجود',
+                subtitle:
+                    'إضافة الأوراق الجديدة وتحديث الموجودة فقط إذا كانت نسخة الملف أحدث.',
+                selected: _mode == BackupImportMode.merge,
+                onTap: () => setState(() => _mode = BackupImportMode.merge),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _ImportModeOptionCard(
+                key: const ValueKey<String>('backup-import-replace'),
+                title: 'استبدال الكل',
+                subtitle:
+                    'حذف الأوراق الحالية على هذا الجهاز واستبدالها بمحتوى النسخة بالكامل.',
+                selected: _mode == BackupImportMode.replace,
+                onTap: () => setState(() => _mode = BackupImportMode.replace),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          key: const ValueKey<String>('backup-import-cancel'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          key: const ValueKey<String>('backup-import-confirm'),
+          onPressed: () => Navigator.of(context).pop(_mode),
+          child: const Text('استعادة'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ImportModeOptionCard extends StatelessWidget {
+  const _ImportModeOptionCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: selected
+          ? scheme.primaryContainer.withValues(alpha: 0.55)
+          : scheme.surface,
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(title, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

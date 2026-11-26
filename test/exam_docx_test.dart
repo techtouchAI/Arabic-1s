@@ -5,6 +5,7 @@ import 'package:bayan/data/local/docx/exam_docx_builder.dart';
 import 'package:bayan/data/local/question_pdf.dart';
 import 'package:bayan/domain/models/library.dart';
 import 'package:bayan/domain/models/progress.dart';
+import 'package:bayan/domain/models/question_print_settings.dart';
 import 'package:bayan/domain/services/question_print_plan.dart';
 import 'package:bayan/presentation/state/exam_composer_state.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -125,11 +126,13 @@ void main() {
   test('QuestionPrinter generates valid multi-page A4 PDF bytes', () async {
     final content = await loadTestContent();
     final p1Units = content.library.unitsForPart(CurriculumPart.part1);
-    final plan = QuestionPrintPlan.fromSelection(
-      p1Units,
-      <String>{p1Units.first.id, p1Units[1].id},
-    );
-    expect(plan.questionCount, 12);
+    final selected = <String>{p1Units.first.id, p1Units[1].id};
+    final plan = QuestionPrintPlan.fromSelection(p1Units, selected);
+    expect(plan.questionCount, 24);
+    expect(plan.settings.compactLines, isFalse);
+    expect(plan.settings.pdfLineSpacing, 4);
+    expect(plan.settings.pdfItemGap, 8);
+    expect(plan.settings.pdfHeadingGap, 10);
 
     final pdfBytes = await QuestionPrinter.buildPdfBytes(
       plan,
@@ -138,5 +141,80 @@ void main() {
     );
     expect(pdfBytes.length, greaterThan(5000));
     expect(String.fromCharCodes(pdfBytes.take(5)), '%PDF-');
+
+    final compactPlan = QuestionPrintPlan.fromSelection(
+      p1Units,
+      selected,
+      settings: const QuestionPrintSettings(
+        font: QuestionPrintFont.amiri,
+        bodyFontSize: 11,
+        headingFontSize: 14,
+        compactLines: true,
+      ),
+    );
+    expect(compactPlan.settings.compactLines, isTrue);
+    expect(compactPlan.settings.pdfLineSpacing, 1.5);
+    expect(compactPlan.settings.pdfItemGap, 3);
+    expect(compactPlan.settings.pdfHeadingGap, 6);
+    final compactBytes = await QuestionPrinter.buildPdfBytes(
+      compactPlan,
+      'الجزء الأول',
+      bundle: DiskAssetBundle(),
+    );
+    expect(compactBytes.length, greaterThan(5000));
+    expect(String.fromCharCodes(compactBytes.take(5)), '%PDF-');
+  });
+
+  test('StudentSummaryPlan and buildSummaryPdfBytes generate bold-topic summary PDF', () async {
+    final content = await loadTestContent();
+    final p1Units = content.library.unitsForPart(CurriculumPart.part1);
+    final selected = <String>{p1Units.first.id, p1Units[1].id};
+
+    // Lesson-backed summary plan
+    final summaryPlan = StudentSummaryPlan.fromSelection(
+      p1Units,
+      selected,
+      lessons: content.library.lessons,
+      settings: const QuestionPrintSettings(
+        font: QuestionPrintFont.cairo,
+        bodyFontSize: 12,
+        headingFontSize: 15,
+        compactLines: true,
+      ),
+    );
+    expect(summaryPlan.isEmpty, isFalse);
+    expect(summaryPlan.units, hasLength(2));
+    expect(summaryPlan.topicCount, greaterThanOrEqualTo(6));
+    expect(summaryPlan.lineCount, greaterThan(10));
+    for (final su in summaryPlan.units) {
+      expect(su.lessonTitle.trim(), isNotEmpty);
+      expect(su.topics, isNotEmpty);
+      for (final topic in su.topics) {
+        expect(topic.heading.trim(), isNotEmpty);
+      }
+    }
+
+    final summaryPdf = await QuestionPrinter.buildSummaryPdfBytes(
+      summaryPlan,
+      'الجزء الأول',
+      bundle: DiskAssetBundle(),
+    );
+    expect(summaryPdf.length, greaterThan(5000));
+    expect(String.fromCharCodes(summaryPdf.take(5)), '%PDF-');
+
+    // Fallback when lessons list is omitted: derives topics directly from Unit.topics
+    final fallbackPlan = StudentSummaryPlan.fromSelection(
+      p1Units,
+      <String>{p1Units.first.id},
+    );
+    expect(fallbackPlan.units, hasLength(1));
+    expect(fallbackPlan.topicCount, greaterThan(0));
+    expect(fallbackPlan.lineCount, greaterThan(0));
+    final fallbackPdf = await QuestionPrinter.buildSummaryPdfBytes(
+      fallbackPlan,
+      'الجزء الأول',
+      bundle: DiskAssetBundle(),
+    );
+    expect(String.fromCharCodes(fallbackPdf.take(5)), '%PDF-');
   });
 }

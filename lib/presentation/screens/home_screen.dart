@@ -73,7 +73,7 @@ class HomeScreen extends StatelessWidget {
                 // Teacher & Exam Quick Actions
                 SectionHeader(
                   title: 'أدوات المدرس والامتحانات',
-                  subtitle: 'تصدير أسئلة Word رسمية (.docx) وطباعة بنك الأسئلة (PDF)',
+                  subtitle: 'تصدير أسئلة Word رسمية (.docx) وملخص للطالب (PDF)',
                   accent: scheme.secondary,
                 ),
                 LayoutBuilder(
@@ -95,9 +95,9 @@ class HomeScreen extends StatelessWidget {
                     final printCard = _ToolActionCard(
                       cardKey: const ValueKey<String>('open-question-printer'),
                       icon: Icons.print_outlined,
-                      title: 'طباعة بنك الأسئلة والأجوبة (PDF)',
+                      title: 'ملخص للطالب (PDF)',
                       subtitle:
-                          'طباعة أسئلة المراجعة مع الأجوبة النموذجية لوحدة أو عدة وحدات على ورق A4',
+                          'خياران: أسئلة وأجوبة نموذجية، أو ملخص قواعد فقط — لوحدة أو عدة وحدات على ورق A4',
                       accent: scheme.secondary,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(

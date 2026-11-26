@@ -1,6 +1,8 @@
 import 'package:bayan/app.dart';
 import 'package:bayan/data/local/exam_document_exporter.dart';
+import 'package:bayan/data/local/saved_exam_store.dart';
 import 'package:bayan/domain/models/exam_paper.dart';
+import 'package:bayan/domain/models/saved_exam.dart';
 import 'package:bayan/presentation/screens/saved_exams_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,6 +146,121 @@ void main() {
     await _settle(tester);
     expect(state.savedExams.byId(record.id), isNull);
     expect(state.savedExams.papers, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SavedExamsScreen exports backup and restores via merge or replace', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final state = createTestAppState();
+    final templates = state.examBank.officialTemplates;
+    String? exportedBackupJson;
+    String? nextPickedJson;
+
+    await tester.pumpWidget(BayanApp(state: state));
+    await _settle(tester);
+
+    final nav = tester.state<NavigatorState>(find.byType(Navigator));
+    nav.push(MaterialPageRoute<void>(
+      builder: (_) => SavedExamsScreen(
+        onExportBackup: (backupJson) async {
+          exportedBackupJson = backupJson;
+          return const ExportOutcome(
+            kind: ExportOutcomeKind.savedToFile,
+            filePath: '/tmp/bayan_backup.json',
+          );
+        },
+        onPickBackup: () async => nextPickedJson,
+      ),
+    ));
+    await _settle(tester);
+
+    // 1. Exporting an empty library warns without calling the file exporter.
+    await tester.tap(
+      find.byKey(const ValueKey<String>('saved-exams-backup-export')),
+    );
+    await _settle(tester);
+    expect(exportedBackupJson, isNull);
+    expect(
+      find.text('لا توجد أوراق محفوظة لإنشاء نسخة احتياطية منها.'),
+      findsOneWidget,
+    );
+    ScaffoldMessenger.of(nav.context).clearSnackBars();
+
+    // 2. Save a local paper and export a backup.
+    final local = state.savedExams.save(
+      templates[0].toExamPaper(schoolName: 'متوسطة بابل'),
+    );
+    state.savedExams.rename(local.id, 'امتحان محلي');
+    await _settle(tester);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('saved-exams-backup-export')),
+    );
+    await _settle(tester);
+    expect(exportedBackupJson, isNotNull);
+    final roundTripped = SavedExamStore.decodeBackup(exportedBackupJson!);
+    expect(roundTripped, hasLength(1));
+    expect(roundTripped.single.displayTitle, 'امتحان محلي');
+
+    // 3. Invalid JSON shows a clean Arabic error message without crashing.
+    ScaffoldMessenger.of(nav.context).clearSnackBars();
+    nextPickedJson = 'not-json';
+    await tester.tap(
+      find.byKey(const ValueKey<String>('saved-exams-backup-import')),
+    );
+    await _settle(tester);
+    expect(
+      find.text('ملف النسخة الاحتياطية ليس ملف JSON صالحاً.'),
+      findsOneWidget,
+    );
+
+    // 4. Import a backup in «دمج مع الموجود» mode: adds external paper and keeps local.
+    ScaffoldMessenger.of(nav.context).clearSnackBars();
+    final externalPaper = SavedExamPaper(
+      id: 'imported-paper-1',
+      paper: templates[1].toExamPaper(schoolName: 'ثانوية الحلة'),
+      createdAt: DateTime.utc(2026, 11, 25, 8),
+      updatedAt: DateTime.utc(2026, 11, 26, 8),
+      customTitle: 'ورقة مستعادة من النسخة',
+    );
+    nextPickedJson = SavedExamStore.encodeBackup(
+      <SavedExamPaper>[externalPaper],
+      exportedAt: DateTime.utc(2026, 11, 26, 8, 30),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('saved-exams-backup-import')),
+    );
+    await _settle(tester);
+    expect(find.text('استعادة نسخة احتياطية؟'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('backup-import-confirm')),
+    );
+    await _settle(tester);
+    expect(state.savedExams.papers, hasLength(2));
+    expect(find.text('امتحان محلي'), findsOneWidget);
+    expect(find.text('ورقة مستعادة من النسخة'), findsOneWidget);
+
+    // 5. Import in «استبدال الكل» mode: swaps the whole library with the backup.
+    ScaffoldMessenger.of(nav.context).clearSnackBars();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('saved-exams-backup-import')),
+    );
+    await _settle(tester);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('backup-import-replace')),
+    );
+    await _settle(tester);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('backup-import-confirm')),
+    );
+    await _settle(tester);
+    expect(state.savedExams.papers, hasLength(1));
+    expect(state.savedExams.papers.single.id, 'imported-paper-1');
     expect(tester.takeException(), isNull);
   });
 }

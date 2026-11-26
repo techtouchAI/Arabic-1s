@@ -114,6 +114,42 @@ class SavedExamLibrary extends ChangeNotifier {
     return true;
   }
 
+  /// Serialises every saved paper as a portable backup file payload.
+  String buildBackupJson({DateTime? exportedAt}) =>
+      SavedExamStore.encodeBackup(_papers, exportedAt: exportedAt);
+
+  /// Restores papers decoded from a backup file.
+  ///
+  /// Returns the per-paper outcome; nothing is persisted when the import
+  /// changes nothing (empty backup or every copy older than the device one).
+  BackupImportResult importBackupPapers(
+    List<SavedExamPaper> imported, {
+    BackupImportMode mode = BackupImportMode.merge,
+  }) {
+    final (merged, result) = SavedExamStore.mergeBackup(
+      current: _papers,
+      imported: imported,
+      mode: mode,
+    );
+    if (result.hasChanges) {
+      _papers = List<SavedExamPaper>.of(merged);
+      _changed();
+    }
+    return result;
+  }
+
+  /// Decodes [raw] backup JSON and restores it in one step.
+  ///
+  /// Throws [FormatException] when [raw] is not a بَيَان backup.
+  BackupImportResult importBackupJson(
+    String raw, {
+    BackupImportMode mode = BackupImportMode.merge,
+  }) =>
+      importBackupPapers(
+        SavedExamStore.decodeBackup(raw),
+        mode: mode,
+      );
+
   /// Completes once every change made so far has been written.
   Future<void> flush() => _pendingWrite ?? Future<void>.value();
 

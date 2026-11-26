@@ -26,7 +26,30 @@ void main() {
 
     final totalQuestions =
         lib.units.fold<int>(0, (sum, u) => sum + u.questions.length);
-    expect(totalQuestions, 114);
+    expect(totalQuestions, 228);
+
+    // Every single grammar unit across both parts has an expanded 12-question bank
+    // with unique IDs/prompts and both choice & open official styles.
+    final seenIds = <String>{};
+    for (final unit in <Unit>[...p1, ...p2]) {
+      expect(unit.questions, hasLength(12), reason: 'unit ${unit.id}');
+      expect(
+        unit.questions.any((q) => q.kind == QuestionKind.choice),
+        isTrue,
+        reason: 'choice questions in ${unit.id}',
+      );
+      expect(
+        unit.questions.any((q) => q.kind == QuestionKind.open),
+        isTrue,
+        reason: 'open questions in ${unit.id}',
+      );
+      final prompts = <String>{};
+      for (final q in unit.questions) {
+        expect(seenIds.add(q.id), isTrue, reason: 'duplicate id ${q.id}');
+        expect(prompts.add(q.prompt), isTrue, reason: 'duplicate prompt in ${unit.id}');
+        expect(q.displayAnswer.trim(), isNotEmpty, reason: 'empty answer in ${q.id}');
+      }
+    }
   });
 
   test('diacritic-insensitive search finds vocalized texts, grammar, and taqwim', () async {

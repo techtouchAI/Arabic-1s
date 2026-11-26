@@ -18,10 +18,22 @@ typedef PrintQuestionsCallback = Future<void> Function(
   String partTitle,
 );
 
+typedef PrintSummaryCallback = Future<void> Function(
+  StudentSummaryPlan plan,
+  String partTitle,
+);
+
+/// «ملخص للطالب»: two print modes sharing font, sizes and compact spacing —
+/// official-style questions with model answers, or grammar summary only.
 class QuestionPrintScreen extends StatefulWidget {
-  const QuestionPrintScreen({super.key, this.printQuestions});
+  const QuestionPrintScreen({
+    super.key,
+    this.printQuestions,
+    this.printSummary,
+  });
 
   final PrintQuestionsCallback? printQuestions;
+  final PrintSummaryCallback? printSummary;
 
   @override
   State<QuestionPrintScreen> createState() => _QuestionPrintScreenState();
@@ -33,7 +45,9 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
   String? _selectionPart;
   bool _initialized = false;
   bool _printing = false;
+  QuestionPrintMode _mode = QuestionPrintMode.questionsAnswers;
   bool _includeAnswers = true;
+  bool _compactLines = false;
   QuestionPrintFont _font = QuestionPrintFont.plex;
   final TextEditingController _bodySize = TextEditingController(
     text: '${QuestionPrintSettings.defaultBodyFontSize}',
@@ -74,16 +88,42 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
       bodyFontSize: body!,
       headingFontSize: heading!,
       includeAnswers: _includeAnswers,
+      compactLines: _compactLines,
     );
   }
 
-  Future<void> _print(QuestionPrintPlan plan, String partTitle) async {
+  Future<void> _printQuestions(QuestionPrintPlan plan, String partTitle) async {
     if (plan.isEmpty || !plan.settings.isValid || _printing) {
       return;
     }
     setState(() => _printing = true);
     try {
       await (widget.printQuestions ?? QuestionPrinter.print)(plan, partTitle);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تعذّرت الطباعة: $error'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _printing = false);
+      }
+    }
+  }
+
+  Future<void> _printSummary(StudentSummaryPlan plan, String partTitle) async {
+    if (plan.isEmpty || !plan.settings.isValid || _printing) {
+      return;
+    }
+    setState(() => _printing = true);
+    try {
+      await (widget.printSummary ?? QuestionPrinter.printSummary)(
+        plan,
+        partTitle,
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -106,16 +146,31 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
     final scheme = theme.colorScheme;
     final units = printableUnits(state.partUnits);
     final settings = _settings;
-    final plan = QuestionPrintPlan.fromSelection(
+    final effectiveSettings = settings ?? const QuestionPrintSettings();
+    final isQuestionsMode = _mode == QuestionPrintMode.questionsAnswers;
+    final questionsPlan = QuestionPrintPlan.fromSelection(
       units,
       _selectedIds,
       allowedExamStyles: _selectedStyles,
-      settings: settings ?? const QuestionPrintSettings(),
+      settings: effectiveSettings,
     );
+    final summaryPlan = StudentSummaryPlan.fromSelection(
+      units,
+      _selectedIds,
+      lessons: state.library.lessons,
+      settings: effectiveSettings,
+    );
+    final allSummaryPlan = StudentSummaryPlan.fromSelection(
+      units,
+      units.map((u) => u.id).toSet(),
+      lessons: state.library.lessons,
+      settings: effectiveSettings,
+    );
+    final activeEmpty = isQuestionsMode ? questionsPlan.isEmpty : summaryPlan.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('طباعة بنك الأسئلة (PDF A4)'),
+        title: const Text('ملخص للطالب (PDF A4)'),
         actions: const <Widget>[TextScaleControls()],
       ),
       body: ListView(
@@ -127,6 +182,31 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 const SizedBox(height: AppSpacing.md),
+                SegmentedButton<QuestionPrintMode>(
+                  segments: <ButtonSegment<QuestionPrintMode>>[
+                    for (final mode in QuestionPrintMode.values)
+                      ButtonSegment<QuestionPrintMode>(
+                        value: mode,
+                        label: Text(
+                          mode.label,
+                          key: ValueKey<String>(
+                            mode == QuestionPrintMode.questionsAnswers
+                                ? 'print-mode-questions'
+                                : 'print-mode-summary',
+                          ),
+                        ),
+                      ),
+                  ],
+                  selected: <QuestionPrintMode>{_mode},
+                  onSelectionChanged: _printing
+                      ? null
+                      : (Set<QuestionPrintMode> next) {
+                          if (next.isNotEmpty) {
+                            setState(() => _mode = next.first);
+                          }
+                        },
+                ),
+                const SizedBox(height: AppSpacing.md),
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
@@ -137,7 +217,9 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     ),
                   ),
                   child: Text(
-                    'اختر وحدة أو أكثر وأنماط الأسئلة الرسمية من ${state.partTitle} لطباعة بنك الأسئلة المطابق لنماذج الأسئلة الوزارية بتنسيق A4 جاهز للطباعة أو الحفظ بصيغة PDF.',
+                    isQuestionsMode
+                        ? 'اختر وحدة أو أكثر وأنماط الأسئلة الرسمية من ${state.partTitle} لطباعة بنك الأسئلة المطابق لنماذج الأسئلة الوزارية بتنسيق A4 جاهز للطباعة أو الحفظ بصيغة PDF.'
+                        : 'اختر وحدة أو أكثر من ${state.partTitle} لطباعة ملخص القواعد فقط (القواعد والأمثلة والإعراب) بدون أسئلة، بتنسيق A4 جاهز للطباعة أو الحفظ بصيغة PDF. كل موضوع يظهر بخط سميك.',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -149,46 +231,48 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     message: 'اختر جزءاً دراسياً يحتوي على وحدات.',
                   )
                 else ...<Widget>[
-                  SectionHeader(
-                    title: 'أنماط الأسئلة الرسمية',
-                    accent: scheme.primary,
-                  ),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: <Widget>[
-                      FilterChip(
-                        key: const ValueKey<String>('print-style-all'),
-                        label: const Text('كل الأنماط'),
-                        selected: _selectedStyles.length ==
-                            ExamBankPicker.unitQuestionStyles.length,
-                        onSelected: _printing
-                            ? null
-                            : (bool sel) => setState(() {
-                                  _selectedStyles = sel
-                                      ? ExamBankPicker.unitQuestionStyles
-                                          .toSet()
-                                      : <String>{};
-                                }),
-                      ),
-                      for (final style in ExamBankPicker.unitQuestionStyles)
+                  if (isQuestionsMode) ...<Widget>[
+                    SectionHeader(
+                      title: 'أنماط الأسئلة الرسمية',
+                      accent: scheme.primary,
+                    ),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: <Widget>[
                         FilterChip(
-                          key: ValueKey<String>('print-style-$style'),
-                          label: Text(ExamBankPicker.grammarStyleLabel(style)),
-                          selected: _selectedStyles.contains(style),
+                          key: const ValueKey<String>('print-style-all'),
+                          label: const Text('كل الأنماط'),
+                          selected: _selectedStyles.length ==
+                              ExamBankPicker.unitQuestionStyles.length,
                           onSelected: _printing
                               ? null
                               : (bool sel) => setState(() {
-                                    if (sel) {
-                                      _selectedStyles.add(style);
-                                    } else {
-                                      _selectedStyles.remove(style);
-                                    }
+                                    _selectedStyles = sel
+                                        ? ExamBankPicker.unitQuestionStyles
+                                            .toSet()
+                                        : <String>{};
                                   }),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
+                        for (final style in ExamBankPicker.unitQuestionStyles)
+                          FilterChip(
+                            key: ValueKey<String>('print-style-$style'),
+                            label: Text(ExamBankPicker.grammarStyleLabel(style)),
+                            selected: _selectedStyles.contains(style),
+                            onSelected: _printing
+                                ? null
+                                : (bool sel) => setState(() {
+                                      if (sel) {
+                                        _selectedStyles.add(style);
+                                      } else {
+                                        _selectedStyles.remove(style);
+                                      }
+                                    }),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
                   SectionHeader(
                     title: 'اختر الوحدات (${state.partTitle})',
                     accent: scheme.secondary,
@@ -197,7 +281,10 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     spacing: AppSpacing.sm,
                     children: <Widget>[
                       TextButton.icon(
-                        onPressed: _printing || plan.units.length == units.length
+                        onPressed: _printing ||
+                                (isQuestionsMode
+                                    ? questionsPlan.units.length == units.length
+                                    : summaryPlan.units.length == units.length)
                             ? null
                             : () => setState(() {
                                   _selectedIds =
@@ -207,7 +294,7 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                         label: const Text('تحديد الكل'),
                       ),
                       TextButton(
-                        onPressed: _printing || plan.isEmpty
+                        onPressed: _printing || activeEmpty
                             ? null
                             : () => setState(_selectedIds.clear),
                         child: const Text('إلغاء التحديد'),
@@ -232,7 +319,9 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                               style: theme.textTheme.titleMedium,
                             ),
                             subtitle: Text(
-                              '${toArabicDigits(units[i].questions.length)} أسئلة • ${units[i].grammarTitle}',
+                              isQuestionsMode
+                                  ? '${toArabicDigits(units[i].questions.length)} أسئلة • ${units[i].grammarTitle}'
+                                  : '${toArabicDigits(allSummaryPlan.units.firstWhere((su) => su.unit.id == units[i].id).topics.length)} مواضيع • ${units[i].grammarTitle}',
                               style: theme.textTheme.labelMedium,
                             ),
                             value: _selectedIds.contains(units[i].id),
@@ -252,7 +341,9 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   SectionHeader(
-                    title: 'إعدادات الخط والأجوبة النموذجية',
+                    title: isQuestionsMode
+                        ? 'إعدادات الخط والأجوبة النموذجية'
+                        : 'إعدادات الخط والتباعد',
                     accent: scheme.primary,
                   ),
                   Container(
@@ -265,13 +356,27 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
+                        if (isQuestionsMode)
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('تضمين الأجوبة النموذجية تحت كل سؤال'),
+                            value: _includeAnswers,
+                            onChanged: _printing
+                                ? null
+                                : (bool v) =>
+                                    setState(() => _includeAnswers = v),
+                          ),
                         SwitchListTile(
+                          key: const ValueKey<String>('print-compact-lines'),
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('تضمين الأجوبة النموذجية تحت كل سؤال'),
-                          value: _includeAnswers,
+                          title: const Text('تقليل التباعد بين الأسطر'),
+                          subtitle: const Text(
+                            'وضع مضغوط لطباعة عدد أكبر من الأسطر في الصفحة الواحدة.',
+                          ),
+                          value: _compactLines,
                           onChanged: _printing
                               ? null
-                              : (bool v) => setState(() => _includeAnswers = v),
+                              : (bool v) => setState(() => _compactLines = v),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         DropdownButtonFormField<QuestionPrintFont>(
@@ -362,21 +467,38 @@ class _QuestionPrintScreenState extends State<QuestionPrintScreen> {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      plan.isEmpty
-                          ? 'اختر وحدة واحدة على الأقل'
-                          : '${toArabicDigits(plan.units.length)} وحدة • '
-                                '${toArabicDigits(plan.questionCount)} سؤالاً',
+                      isQuestionsMode
+                          ? (questionsPlan.isEmpty
+                              ? 'اختر وحدة واحدة على الأقل'
+                              : '${toArabicDigits(questionsPlan.units.length)} وحدة • '
+                                  '${toArabicDigits(questionsPlan.questionCount)} سؤالاً')
+                          : (summaryPlan.isEmpty
+                              ? 'اختر وحدة واحدة على الأقل'
+                              : '${toArabicDigits(summaryPlan.units.length)} وحدة • '
+                                  '${toArabicDigits(summaryPlan.topicCount)} موضوعاً • '
+                                  '${toArabicDigits(summaryPlan.lineCount)} سطراً'),
                       style: theme.textTheme.labelLarge,
                     ),
                   ),
-                  FilledButton.icon(
-                    key: const ValueKey<String>('print-questions-button'),
-                    onPressed: plan.isEmpty || _printing || settings == null
-                        ? null
-                        : () => _print(plan, state.partTitle),
-                    icon: const Icon(Icons.print_outlined, size: 20),
-                    label: Text(_printing ? 'جاري التحضير...' : 'طباعة / PDF'),
-                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  if (isQuestionsMode)
+                    FilledButton.icon(
+                      key: const ValueKey<String>('print-questions-button'),
+                      onPressed: questionsPlan.isEmpty || _printing || settings == null
+                          ? null
+                          : () => _printQuestions(questionsPlan, state.partTitle),
+                      icon: const Icon(Icons.print_outlined, size: 20),
+                      label: Text(_printing ? 'جاري التحضير...' : 'طباعة / PDF'),
+                    )
+                  else
+                    FilledButton.icon(
+                      key: const ValueKey<String>('print-summary-button'),
+                      onPressed: summaryPlan.isEmpty || _printing || settings == null
+                          ? null
+                          : () => _printSummary(summaryPlan, state.partTitle),
+                      icon: const Icon(Icons.print_outlined, size: 20),
+                      label: Text(_printing ? 'جاري التحضير...' : 'طباعة الملخص / PDF'),
+                    ),
                 ],
               ),
             ),

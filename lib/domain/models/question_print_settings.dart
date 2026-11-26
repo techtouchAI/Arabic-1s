@@ -52,12 +52,28 @@ enum QuestionPrintFont {
   final String boldAsset;
 }
 
+/// What the student-summary printer produces.
+enum QuestionPrintMode {
+  /// Official-style questions with model answers underneath each question.
+  questionsAnswers,
+
+  /// Grammar summary only (rules, examples and irab) without any questions.
+  summaryOnly;
+
+  /// Short Arabic label shown in the mode selector.
+  String get label => switch (this) {
+        QuestionPrintMode.questionsAnswers => 'أسئلة وأجوبة',
+        QuestionPrintMode.summaryOnly => 'ملخص فقط',
+      };
+}
+
 class QuestionPrintSettings {
   const QuestionPrintSettings({
     this.font = QuestionPrintFont.plex,
     this.bodyFontSize = defaultBodyFontSize,
     this.headingFontSize = defaultHeadingFontSize,
     this.includeAnswers = true,
+    this.compactLines = false,
   });
 
   static const int minFontSize = 9;
@@ -70,9 +86,21 @@ class QuestionPrintSettings {
   final int headingFontSize;
   final bool includeAnswers;
 
+  /// Tight line spacing for dense handouts; shared by both print modes.
+  final bool compactLines;
+
   static bool isValidFontSize(int? value) =>
       value != null && value >= minFontSize && value <= maxFontSize;
 
   bool get isValid =>
       isValidFontSize(bodyFontSize) && isValidFontSize(headingFontSize);
+
+  /// PDF line spacing in points (compact mode packs lines closer together).
+  double get pdfLineSpacing => compactLines ? 1.5 : 4;
+
+  /// Vertical gap after each question / summary line in points.
+  double get pdfItemGap => compactLines ? 3 : 8;
+
+  /// Vertical gap before each section / topic heading in points.
+  double get pdfHeadingGap => compactLines ? 6 : 10;
 }
