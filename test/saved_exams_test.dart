@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:bayan/data/local/docx/exam_docx_builder.dart';
+import 'package:bayan/data/local/saved_exam_backup_file.dart';
 import 'package:bayan/data/local/saved_exam_store.dart';
 import 'package:bayan/domain/models/exam_paper.dart';
 import 'package:bayan/domain/models/library.dart';
@@ -266,6 +267,187 @@ void main() {
     expect(library.papers, hasLength(1));
     expect(library.byId(id)!.revision, 4);
     expect(library.byId(id)!.paper.orthography.degree, 20);
+  });
+
+  group('SavedExamStore & SavedExamLibrary backup export/restore', () {
+    test('backup envelope round-trips papers, metadata, and Word output', () async {
+      final content = await loadTestContent();
+      final templates = content.examBank.officialTemplates;
+      final p1 = SavedExamPaper(
+        id: 'exam-1',
+        paper: _customPaper(templates[0].toExamPaper()),
+        createdAt: DateTime.utc(2026, 11, 20, 8),
+        updatedAt: DateTime.utc(2026, 11, 22, 10),
+        customTitle: 'الشعبة أ — نصف السنة',
+        revision: 3,
+      );
+      final p2 = SavedExamPaper(
+        id: 'exam-2',
+        paper: templates[1].toExamPaper(schoolName: 'ثانوية الحلة'),
+        createdAt: DateTime.utc(2026, 11, 21, 9),
+        updatedAt: DateTime.utc(2026, 11, 21, 9),
+        revision: 1,
+      );
+      final stamp = DateTime.utc(2026, 11, 26, 9, 30);
+      final raw = SavedExamStore.encodeBackup(
+        <SavedExamPaper>[p1, p2],
+        exportedAt: stamp,
+      );
+
+      expect(SavedExamStore.backupExportedAt(raw), stamp);
+      final decoded = SavedExamStore.decodeBackup(raw);
+      expect(decoded, hasLength(2));
+      expect(decoded.first.id, 'exam-1');
+      expect(decoded.first.customTitle, 'الشعبة أ — نصف السنة');
+      expect(decoded.first.revision, 3);
+      expect(
+        ExamDocxBuilder.build(decoded.first.paper),
+        ExamDocxBuilder.build(p1.paper),
+      );
+
+      final fileName = SavedExamBackupFileService.suggestedFileName(
+        now: DateTime(2026, 11, 26, 9, 5),
+      );
+      expect(
+        fileName,
+        'بيان_نسخة_احتياطية_أسئلتي_المحفوظة_20261126_0905.json',
+      );
+    });
+
+    test('decodeBackup validates envelope, accepts legacy dumps, and isolates bad records', () async {
+      final content = await loadTestContent();
+      final good = SavedExamPaper(
+        id: 'ok-1',
+        paper: content.examBank.officialTemplates.first.toExamPaper(),
+        createdAt: DateTime.utc(2026, 11, 1),
+        updatedAt: DateTime.utc(2026, 11, 2),
+      );
+
+      // Legacy store dump without app/kind is still accepted.
+      final legacy = jsonEncode(<String, dynamic>{
+        'version': 1,
+        'papers': <dynamic>[
+          good.toJson(),
+          <String, dynamic>{'id': 'corrupted'},
+          good.toJson(),
+        ],
+      });
+      final fromLegacy = SavedExamStore.decodeBackup(legacy);
+      expect(fromLegacy, hasLength(1));
+      expect(fromLegacy.single.id, 'ok-1');
+      expect(SavedExamStore.backupExportedAt(legacy), isNull);
+
+      // Invalid payloads throw FormatException with clear Arabic diagnostics.
+      expect(
+        () => SavedExamStore.decodeBackup('{invalid json'),
+        throwsFormatException,
+      );
+      expect(
+        () => SavedExamStore.decodeBackup('[1, 2, 3]'),
+        throwsFormatException,
+      );
+      expect(
+        () => SavedExamStore.decodeBackup(
+          jsonEncode(<String, dynamic>{
+            'app': 'other_app',
+            'kind': 'saved_exams_backup',
+            'papers': <dynamic>[],
+          }),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => SavedExamStore.decodeBackup(
+          jsonEncode(<String, dynamic>{
+            'app': 'bayan',
+            'kind': 'saved_exams_backup',
+          }),
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('merge mode keeps newer local copies, updates older ones, and replace mode swaps library', () async {
+      final content = await loadTestContent();
+      final base = content.examBank.officialTemplates.first.toExamPaper();
+
+      final keptNewer = SavedExamPaper(
+        id: 'local-newer',
+        paper: base.copyWith(header: base.header.copyWith(schoolName: 'الأحدث محلياً')),
+        createdAt: DateTime.utc(2026, 11, 1),
+        updatedAt: DateTime.utc(2026, 11, 10),
+        revision: 4,
+      );
+      final staleLocal = SavedExamPaper(
+        id: 'shared-stale',
+        paper: base.copyWith(header: base.header.copyWith(schoolName: 'قديم محلياً')),
+        createdAt: DateTime.utc(2026, 11, 1),
+        updatedAt: DateTime.utc(2026, 11, 3),
+        revision: 1,
+      );
+      final store = MemorySavedExamStore(<SavedExamPaper>[keptNewer, staleLocal]);
+      final target = SavedExamLibrary(store, clock: _steppingClock());
+
+      final backupJson = SavedExamStore.encodeBackup(<SavedExamPaper>[
+        keptNewer.copyWith(
+          paper: base.copyWith(header: base.header.copyWith(schoolName: 'نسخة قديمة')),
+          updatedAt: DateTime.utc(2026, 11, 5),
+          revision: 2,
+        ),
+        staleLocal.copyWith(
+          paper: base.copyWith(header: base.header.copyWith(schoolName: 'محدّث من النسخة')),
+          updatedAt: DateTime.utc(2026, 11, 12),
+          revision: 3,
+        ),
+        SavedExamPaper(
+          id: 'brand-new',
+          paper: base.copyWith(header: base.header.copyWith(schoolName: 'ورقة جديدة')),
+          createdAt: DateTime.utc(2026, 11, 11),
+          updatedAt: DateTime.utc(2026, 11, 11),
+        ),
+      ]);
+
+      final mergedResult = target.importBackupJson(
+        backupJson,
+        mode: BackupImportMode.merge,
+      );
+      await target.flush();
+
+      expect(mergedResult.added, 1);
+      expect(mergedResult.updated, 1);
+      expect(mergedResult.skipped, 1);
+      expect(mergedResult.total, 3);
+      expect(target.papers, hasLength(3));
+      expect(target.byId('local-newer')!.paper.header.schoolName, 'الأحدث محلياً');
+      expect(target.byId('shared-stale')!.paper.header.schoolName, 'محدّث من النسخة');
+      expect(target.byId('brand-new')!.paper.header.schoolName, 'ورقة جديدة');
+
+      // Empty backup never wipes the library, even in replace mode.
+      final emptyResult = target.importBackupPapers(
+        const <SavedExamPaper>[],
+        mode: BackupImportMode.replace,
+      );
+      expect(emptyResult.hasChanges, isFalse);
+      expect(target.papers, hasLength(3));
+
+      // Replace mode swaps the library with the backup contents.
+      final singleBackup = SavedExamStore.encodeBackup(<SavedExamPaper>[
+        SavedExamPaper(
+          id: 'only-this',
+          paper: base.copyWith(header: base.header.copyWith(schoolName: 'استبدال كامل')),
+          createdAt: DateTime.utc(2026, 11, 25),
+          updatedAt: DateTime.utc(2026, 11, 25),
+        ),
+      ]);
+      final replaceResult = target.importBackupJson(
+        singleBackup,
+        mode: BackupImportMode.replace,
+      );
+      await target.flush();
+      expect(replaceResult.added, 1);
+      expect(target.papers.map((p) => p.id).toList(), <String>['only-this']);
+      expect(store.read().single.id, 'only-this');
+    });
   });
 }
 

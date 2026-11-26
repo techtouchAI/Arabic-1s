@@ -71,11 +71,11 @@ void main() {
     test('unit questions flatten per-unit banks with kind filter', () {
       final library = loadTestContentSync().library;
       final all = ExamBankPicker.filterUnitQuestions(library);
-      expect(all.length, greaterThan(50));
+      expect(all, hasLength(228));
       expect(all.every((e) => e.unit.questions.contains(e.question)), isTrue);
 
       final part1 = ExamBankPicker.filterUnitQuestions(library, part: 'part1');
-      expect(part1, isNotEmpty);
+      expect(part1, hasLength(120));
       expect(
         part1.every((e) => e.unit.part == 'part1' || e.unit.part == 'both'),
         isTrue,
@@ -85,7 +85,7 @@ void main() {
         library,
         unitId: 'p1-u1',
       );
-      expect(oneUnit, hasLength(6));
+      expect(oneUnit, hasLength(12));
       expect(oneUnit.every((e) => e.unit.id == 'p1-u1'), isTrue);
 
       final choices = ExamBankPicker.filterUnitQuestions(

@@ -155,7 +155,7 @@ def main() -> int:
                 for opt in q_opts:
                     check_clean_arabic(opt, f"{qid}/quizOpt")
 
-    expect(total_questions == 114, f"expected 114 unit questions, found {total_questions}")
+    expect(total_questions == 228, f"expected 228 unit questions, found {total_questions}")
 
     # 3. Verify 19 Grammar & Taqwim reference lessons
     expect(len(lessons["lessons"]) == 19, f"expected 19 grammar lessons, found {len(lessons['lessons'])}")

@@ -9,6 +9,7 @@ import 'package:bayan/data/local/exam_document_exporter.dart';
 import 'package:bayan/domain/models/exam_paper.dart';
 import 'package:bayan/domain/models/library.dart';
 import 'package:bayan/domain/models/progress.dart';
+import 'package:bayan/domain/models/question_print_settings.dart';
 import 'package:bayan/domain/services/exam_bank_picker.dart';
 import 'package:bayan/domain/services/exam_layout_plan.dart';
 import 'package:bayan/domain/services/question_print_plan.dart';
@@ -457,9 +458,105 @@ void main() {
           seenStyles.add(q.effectiveExamStyle);
         }
       }
-      expect(count, 114);
+      expect(count, 228);
       expect(seenStyles, equals(validStyles));
       expect(ExamBankPicker.grammarStyles.contains('taqwim'), isFalse);
+    });
+
+    testWidgets('QuestionPrintScreen («ملخص للطالب») supports both modes and compact line spacing', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(412, 915);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      QuestionPrintPlan? capturedQuestions;
+      StudentSummaryPlan? capturedSummary;
+      final state = createTestAppState();
+      await tester.pumpWidget(BayanApp(state: state));
+      await _settle(tester);
+
+      // Home screen shows the renamed «ملخص للطالب (PDF)» tool card.
+      expect(find.text('ملخص للطالب (PDF)'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('open-question-printer')),
+        findsOneWidget,
+      );
+
+      final nav = tester.state<NavigatorState>(find.byType(Navigator));
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => QuestionPrintScreen(
+            printQuestions: (QuestionPrintPlan plan, String _) async {
+              capturedQuestions = plan;
+            },
+            printSummary: (StudentSummaryPlan plan, String _) async {
+              capturedSummary = plan;
+            },
+          ),
+        ),
+      );
+      await _settle(tester);
+
+      expect(find.text('ملخص للطالب (PDF A4)'), findsOneWidget);
+      expect(find.text('أسئلة وأجوبة'), findsOneWidget);
+      expect(find.text('ملخص فقط'), findsOneWidget);
+
+      // Enable «تقليل التباعد بين الأسطر» in «أسئلة وأجوبة» mode and print.
+      final compactSwitch =
+          find.byKey(const ValueKey<String>('print-compact-lines'));
+      await tester.ensureVisible(compactSwitch);
+      await _settle(tester);
+      await tester.tap(compactSwitch);
+      await _settle(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('print-questions-button')),
+      );
+      await _settle(tester);
+      expect(capturedQuestions, isNotNull);
+      expect(capturedQuestions!.settings.compactLines, isTrue);
+      expect(capturedQuestions!.questionCount, 120);
+
+      // Switch to «ملخص فقط»: style chips disappear, shared compactLines stays on.
+      final summaryMode =
+          find.byKey(const ValueKey<String>('print-mode-summary'));
+      await tester.ensureVisible(summaryMode);
+      await _settle(tester);
+      await tester.tap(summaryMode);
+      await _settle(tester);
+
+      expect(find.byKey(const ValueKey<String>('print-style-irab')), findsNothing);
+      expect(find.text('تضمين الأجوبة النموذجية تحت كل سؤال'), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('print-compact-lines')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('print-summary-button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('print-summary-button')),
+      );
+      await _settle(tester);
+      expect(capturedSummary, isNotNull);
+      expect(capturedSummary!.settings.compactLines, isTrue);
+      expect(
+        capturedSummary!.settings.font,
+        capturedQuestions!.settings.font,
+      );
+      expect(
+        capturedSummary!.settings.bodyFontSize,
+        capturedQuestions!.settings.bodyFontSize,
+      );
+      expect(
+        capturedSummary!.settings.headingFontSize,
+        capturedQuestions!.settings.headingFontSize,
+      );
+      expect(capturedSummary!.units, hasLength(10));
+      expect(capturedSummary!.topicCount, greaterThanOrEqualTo(30));
     });
 
     testWidgets('QuestionPrintScreen filters by official exam styles without true/false', (

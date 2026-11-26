@@ -163,3 +163,139 @@ class QuestionPrintPlan {
 
   bool get isEmpty => questionCount == 0;
 }
+
+/// One body line inside a summary topic.
+class SummaryLine {
+  const SummaryLine({required this.text, this.isBullet = false});
+
+  final String text;
+  final bool isBullet;
+}
+
+/// One topic (موضوع) of a grammar summary: a bold heading plus its lines.
+class SummaryTopic {
+  const SummaryTopic({required this.heading, required this.lines});
+
+  final String heading;
+  final List<SummaryLine> lines;
+}
+
+/// Grammar summary of a single unit for the «ملخص فقط» print mode.
+class StudentSummaryUnit {
+  const StudentSummaryUnit({
+    required this.unit,
+    required this.lessonTitle,
+    required this.summary,
+    required this.topics,
+  });
+
+  final Unit unit;
+  final String lessonTitle;
+  final String summary;
+  final List<SummaryTopic> topics;
+
+  int get lineCount => topics.fold(0, (sum, topic) => sum + topic.lines.length);
+}
+
+/// «ملخص للطالب» plan: grammar summaries of the selected units, without
+/// questions. Shares font, sizes and compact spacing with [QuestionPrintPlan].
+class StudentSummaryPlan {
+  const StudentSummaryPlan({required this.units, required this.settings});
+
+  factory StudentSummaryPlan.fromSelection(
+    List<Unit> availableUnits,
+    Set<String> selectedUnitIds, {
+    List<GrammarLesson> lessons = const <GrammarLesson>[],
+    QuestionPrintSettings settings = const QuestionPrintSettings(),
+  }) {
+    final lessonsByUnit = <String, GrammarLesson>{
+      for (final lesson in lessons) lesson.unitId: lesson,
+    };
+    final chosen = availableUnits
+        .where((u) => selectedUnitIds.contains(u.id))
+        .toList(growable: false);
+    final summaryUnits = <StudentSummaryUnit>[];
+    for (final unit in chosen) {
+      final lesson = lessonsByUnit[unit.id];
+      if (lesson != null) {
+        summaryUnits.add(StudentSummaryUnit(
+          unit: unit,
+          lessonTitle: lesson.title,
+          summary: lesson.summary,
+          topics: _topicsFromLesson(lesson),
+        ));
+      } else {
+        summaryUnits.add(StudentSummaryUnit(
+          unit: unit,
+          lessonTitle: unit.grammarTitle,
+          summary: '',
+          topics: _topicsFromUnit(unit),
+        ));
+      }
+    }
+    return StudentSummaryPlan(units: summaryUnits, settings: settings);
+  }
+
+  static List<SummaryTopic> _topicsFromLesson(GrammarLesson lesson) {
+    final topics = <SummaryTopic>[];
+    var heading = lesson.title;
+    var lines = <SummaryLine>[];
+    void flush() {
+      if (lines.isNotEmpty) {
+        topics.add(SummaryTopic(heading: heading, lines: List.of(lines)));
+        lines = <SummaryLine>[];
+      }
+    }
+
+    for (final plan in lesson.plans) {
+      for (final block in plan.body) {
+        if (block.kind == 'heading') {
+          flush();
+          heading = block.text;
+        } else if (block.text.trim().isNotEmpty) {
+          lines.add(SummaryLine(
+            text: block.text,
+            isBullet: block.kind == 'bullet',
+          ));
+        }
+      }
+    }
+    flush();
+    if (topics.isEmpty) {
+      topics.add(SummaryTopic(heading: lesson.title, lines: const <SummaryLine>[]));
+    }
+    return List<SummaryTopic>.unmodifiable(topics);
+  }
+
+  static List<SummaryTopic> _topicsFromUnit(Unit unit) {
+    final topics = <SummaryTopic>[];
+    for (final topic in unit.topics) {
+      final lines = <SummaryLine>[
+        for (final bullet in topic.bullets)
+          SummaryLine(text: bullet, isBullet: true),
+        for (final item in topic.listItems)
+          SummaryLine(text: item, isBullet: true),
+        for (final pair in topic.taqwim)
+          SummaryLine(text: 'قُلْ: «${pair.say}» — وَلا تَقُلْ: «${pair.dontSay}»'),
+      ];
+      if (lines.isNotEmpty) {
+        topics.add(SummaryTopic(heading: topic.title, lines: lines));
+      }
+    }
+    if (topics.isEmpty) {
+      topics.add(
+        SummaryTopic(heading: unit.grammarTitle, lines: const <SummaryLine>[]),
+      );
+    }
+    return List<SummaryTopic>.unmodifiable(topics);
+  }
+
+  final List<StudentSummaryUnit> units;
+  final QuestionPrintSettings settings;
+
+  int get topicCount => units.fold(0, (sum, unit) => sum + unit.topics.length);
+
+  int get lineCount => units.fold(0, (sum, unit) => sum + unit.lineCount);
+
+  bool get isEmpty => units.isEmpty;
+}
