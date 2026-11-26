@@ -9,7 +9,6 @@ import 'package:bayan/data/local/exam_document_exporter.dart';
 import 'package:bayan/domain/models/exam_paper.dart';
 import 'package:bayan/domain/models/library.dart';
 import 'package:bayan/domain/models/progress.dart';
-import 'package:bayan/domain/models/question_print_settings.dart';
 import 'package:bayan/domain/services/exam_bank_picker.dart';
 import 'package:bayan/domain/services/exam_layout_plan.dart';
 import 'package:bayan/domain/services/question_print_plan.dart';
