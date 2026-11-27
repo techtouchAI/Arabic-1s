@@ -300,7 +300,7 @@ class _SheetPreview extends StatelessWidget {
                   key: const ValueKey<String>('a4-sheet'),
                   width: baseWidth,
                   height: baseHeight,
-                  child: _A4Sheet(
+                  child: _a4Sheet(
                     mode: mode,
                     plans: plans,
                     teal: teal,
@@ -318,7 +318,7 @@ class _SheetPreview extends StatelessWidget {
 
   /// A single A4-proportioned sheet: title bar, the plan table (scrollable
   /// inside the sheet), and a footer.
-  Widget _A4Sheet({
+  Widget _a4Sheet({
     required StudyPlanMode mode,
     required StudyPlans plans,
     required Color teal,

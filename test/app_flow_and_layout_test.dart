@@ -255,9 +255,9 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      for (final mode in <_PlanModeCase>[
-        _PlanModeCase(tab: 'الخطة السنوية', header: 'الوحدة'),
-        _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم'),
+      for (final mode in const <_PlanModeCase>[
+        const _PlanModeCase(tab: 'الخطة السنوية', header: 'الوحدة'),
+        const _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم'),
       ]) {
         final state = createTestAppState(
           selectedPart: CurriculumPart.part1,
