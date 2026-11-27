@@ -8,7 +8,7 @@
 /// full control of the content printed on each A4 sheet.
 library;
 
-import '../core/utils/arabic_text.dart';
+import '../../core/utils/arabic_text.dart';
 import 'library.dart';
 import 'question_print_settings.dart';
 
@@ -281,6 +281,7 @@ class AnnualPlanRow {
   final String notes;
 
   AnnualPlanRow copyWith({
+    String? id,
     String? sectionLabel,
     String? unitId,
     String? unitLabel,
@@ -295,7 +296,7 @@ class AnnualPlanRow {
     String? notes,
   }) =>
       AnnualPlanRow(
-        id: id,
+        id: id ?? this.id,
         sectionLabel: sectionLabel ?? this.sectionLabel,
         unitId: unitId ?? this.unitId,
         unitLabel: unitLabel ?? this.unitLabel,
@@ -369,6 +370,7 @@ class DailyPlanEntry {
   final bool done;
 
   DailyPlanEntry copyWith({
+    String? id,
     String? dayLabel,
     String? dateText,
     String? focus,
@@ -378,7 +380,7 @@ class DailyPlanEntry {
     bool? done,
   }) =>
       DailyPlanEntry(
-        id: id,
+        id: id ?? this.id,
         dayLabel: dayLabel ?? this.dayLabel,
         dateText: dateText ?? this.dateText,
         focus: focus ?? this.focus,

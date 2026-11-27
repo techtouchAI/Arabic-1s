@@ -154,7 +154,7 @@ class StudyPlanPdf {
     final visible = StudyPlanColumns.annual
         .where((c) => plans.settings.visibleAnnualColumns.contains(c.id))
         .toList(growable: false);
-    final totalWeight = visible.fold(0, (sum, c) => sum + c.weight);
+    final totalWeight = visible.fold<double>(0.0, (sum, c) => sum + c.weight);
 
     final compact = plans.settings.compactLines;
     final pad = compact ? 3.0 : 6.0;
@@ -234,10 +234,13 @@ class StudyPlanPdf {
       ),
     ];
 
+    final columnWidths = <int, pw.TableColumnWidth>{
+      for (var i = 0; i < visible.length; i++)
+        i: pw.FractionColumnWidth(visible[i].weight / totalWeight),
+    };
+
     return pw.Table(
-      columnWidths: visible
-          .map((c) => pw.ColumnWidth.fraction(c.weight / totalWeight))
-          .toList(growable: false),
+      columnWidths: columnWidths,
       border: pw.TableBorder.all(color: _line, width: 0.5),
       children: <pw.TableRow>[header, ...dataRows],
     );
@@ -251,7 +254,7 @@ class StudyPlanPdf {
     final visible = StudyPlanColumns.daily
         .where((c) => plans.settings.visibleDailyColumns.contains(c.id))
         .toList(growable: false);
-    final totalWeight = visible.fold(0, (sum, c) => sum + c.weight);
+    final totalWeight = visible.fold<double>(0.0, (sum, c) => sum + c.weight);
 
     final compact = plans.settings.compactLines;
     final pad = compact ? 3.0 : 6.0;
@@ -310,10 +313,13 @@ class StudyPlanPdf {
         ),
     ];
 
+    final columnWidths = <int, pw.TableColumnWidth>{
+      for (var i = 0; i < visible.length; i++)
+        i: pw.FractionColumnWidth(visible[i].weight / totalWeight),
+    };
+
     return pw.Table(
-      columnWidths: visible
-          .map((c) => pw.ColumnWidth.fraction(c.weight / totalWeight))
-          .toList(growable: false),
+      columnWidths: columnWidths,
       border: pw.TableBorder.all(color: _line, width: 0.5),
       children: <pw.TableRow>[header, ...dataRows],
     );
