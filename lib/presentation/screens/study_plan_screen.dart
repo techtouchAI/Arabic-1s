@@ -262,9 +262,6 @@ class _SheetPreview extends StatelessWidget {
   final StudyPlanMode mode;
   final StudyPlans plans;
 
-  /// A4 portrait ratio (width / height).
-  static const double a4Ratio = 1 / 1.414;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -284,11 +281,9 @@ class _SheetPreview extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 600),
-            child: AspectRatio(
-              aspectRatio: a4Ratio,
-              child: Column(
+          child: SizedBox(
+            height: 600,
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                 Container(
