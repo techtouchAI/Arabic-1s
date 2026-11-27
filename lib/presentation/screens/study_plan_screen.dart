@@ -215,11 +215,9 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
                   : const SizedBox.shrink(),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
                     Flexible(
                       flex: _mode == StudyPlanMode.annual ? 7 : 6,
                       child: _SheetPreview(mode: _mode, plans: _plans),
@@ -248,7 +246,6 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
                     ),
                   ],
                 ),
-              ),
             ),
           ],
         ),
