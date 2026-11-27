@@ -276,9 +276,9 @@ void main() {
         await _settle(tester);
 
         // The sheet must keep the exact A4 aspect ratio (210:297).
-        final sheetBox = tester.renderObject(
-          find.byKey(const ValueKey<String>('a4-sheet')),
-        )! as RenderBox;
+        final sheetBox =
+            tester.renderObject(find.byKey(const ValueKey<String>('a4-sheet')))
+                as RenderBox;
         final ratio = sheetBox.size.width / sheetBox.size.height;
         expect(
           (ratio - 210 / 297).abs(),
