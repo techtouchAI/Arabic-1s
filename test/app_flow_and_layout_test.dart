@@ -77,8 +77,8 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
       }
 
-      // Cycle through all 5 main destinations
-      for (var navIdx = 0; navIdx < 5; navIdx++) {
+      // Cycle through all 6 main destinations
+      for (var navIdx = 0; navIdx < 6; navIdx++) {
         state.setNavIndex(navIdx);
         await _settle(tester);
       }
