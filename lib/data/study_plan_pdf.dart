@@ -18,11 +18,11 @@ import '../domain/models/study_plan.dart';
 class StudyPlanPdf {
   const StudyPlanPdf._();
 
-  static const PdfColor _teal = PdfColor(0xFF0F766E);
-  static const PdfColor _ink = PdfColor(0xFF232229);
-  static const PdfColor _muted = PdfColor(0xFF5C5866);
-  static const PdfColor _line = PdfColor(0xFF94A3B8);
-  static const PdfColor _total = PdfColor(0xFFCCFBF1);
+  static const PdfColor _teal = PdfColor(0x0F, 0x76, 0x6E);
+  static const PdfColor _ink = PdfColor(0x23, 0x22, 0x29);
+  static const PdfColor _muted = PdfColor(0x5C, 0x58, 0x66);
+  static const PdfColor _line = PdfColor(0x94, 0xA3, 0xB8);
+  static const PdfColor _total = PdfColor(0xCC, 0xFB, 0xF1);
 
   /// Renders [plans] for [mode] to A4 PDF bytes. [settings] controls
   /// typography and column visibility; an invalid setting is rejected before
@@ -101,10 +101,10 @@ class StudyPlanPdf {
           ),
           child: pw.Column(
             children: <pw.Widget>[
-              pw.Text(title, style: titleStyle.copyWith(color: const PdfColor(0xFFFFFFFF))),
+              pw.Text(title, style: titleStyle.copyWith(color: const PdfColor(0xFF, 0xFF, 0xFF))),
               pw.Padding(
                 padding: const pw.EdgeInsets.only(top: 4),
-                child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const PdfColor(0xFFE6F4F5))),
+                child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const PdfColor(0xE6, 0xF4, 0xF5))),
               ),
             ],
           ),
