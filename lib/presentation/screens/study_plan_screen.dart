@@ -368,12 +368,15 @@ class _SheetPreview extends StatelessWidget {
         .toList(growable: false);
 
     Widget headerCell(String label) => _cell(
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
             ),
           ),
           background: teal,
@@ -520,12 +523,17 @@ class _SheetPreview extends StatelessWidget {
               .map((c) => Expanded(
                     flex: c.weight.toInt(),
                     child: _cell(
-                      Text(c.label,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          c.label,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
                             fontSize: 10,
-                          )),
+                          ),
+                        ),
+                      ),
                       background: teal,
                       center: true,
                     ),
