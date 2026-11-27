@@ -340,7 +340,6 @@ class _SheetPreview extends StatelessWidget {
                 ),
               ],
             ),
-          ),
         ),
       ),
     );
