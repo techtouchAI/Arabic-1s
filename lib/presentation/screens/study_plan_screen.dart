@@ -287,11 +287,13 @@ class _SheetPreview extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          child: AspectRatio(
-            aspectRatio: a4Ratio,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 600),
+            child: AspectRatio(
+              aspectRatio: a4Ratio,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
@@ -345,7 +347,8 @@ class _SheetPreview extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
