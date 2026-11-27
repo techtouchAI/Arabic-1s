@@ -284,8 +284,8 @@ class _SheetPreview extends StatelessWidget {
           child: SizedBox(
             height: 600,
             child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
@@ -339,8 +339,7 @@ class _SheetPreview extends StatelessWidget {
                     ),
                   ],
                 ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
