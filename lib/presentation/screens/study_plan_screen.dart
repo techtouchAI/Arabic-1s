@@ -187,15 +187,18 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            TabBar(
-              isScrollable: true,
-              onTap: (int index) => setState(() =>
-                  _mode =
-                      index == 0 ? StudyPlanMode.daily : StudyPlanMode.annual),
-              tabs: const <Widget>[
-                Tab(text: 'الخطة اليومية'),
-                Tab(text: 'الخطة السنوية'),
-              ],
+            DefaultTabController(
+              length: 2,
+              child: TabBar(
+                isScrollable: true,
+                onTap: (int index) => setState(() =>
+                    _mode =
+                        index == 0 ? StudyPlanMode.daily : StudyPlanMode.annual),
+                tabs: const <Widget>[
+                  Tab(text: 'الخطة اليومية'),
+                  Tab(text: 'الخطة السنوية'),
+                ],
+              ),
             ),
             Expanded(
               child: _optionsExpanded

@@ -590,16 +590,16 @@ int startWeekForDays(int daysBefore) {
 /// Arabic day label: «اليوم الأول»، «اليوم الثاني»، … «اليوم ١٢».
 String dayLabelFor(int index) {
   const ordinals = <String>[
-    'أول',
-    'ثاني',
-    'ثالث',
-    'رابع',
-    'خامس',
-    'سادس',
-    'سابع',
-    'ثامن',
-    'تاسع',
-    'عاشر',
+    'الأول',
+    'الثاني',
+    'الثالث',
+    'الرابع',
+    'الخامس',
+    'السادس',
+    'السابع',
+    'الثامن',
+    'التاسع',
+    'العاشر',
   ];
   final word = index >= 1 && index <= ordinals.length ? ordinals[index - 1] : null;
   return word == null ? 'اليوم ${toArabicDigits(index)}' : 'اليوم $word';
