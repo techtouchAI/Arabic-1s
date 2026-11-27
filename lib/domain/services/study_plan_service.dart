@@ -9,6 +9,8 @@
 /// - **Storage**: versioned JSON in SharedPreferences, with the same
 ///   fallback-to-regeneration behaviour used by the exam composer so the
 ///   app never loses the plan for a corrupt record.
+library;
+
 import 'dart:async';
 import 'dart:convert';
 

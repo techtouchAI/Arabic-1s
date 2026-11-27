@@ -9,6 +9,8 @@
 ///   visibility plus typography are configurable.
 /// - A4 print/PDF through [StudyPlanPdf], reusing the app's tested
 ///   print pipeline and embedded Arabic fonts.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -190,9 +192,9 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
               onTap: (int index) => setState(() =>
                   _mode =
                       index == 0 ? StudyPlanMode.daily : StudyPlanMode.annual),
-              tabs: <Widget>[
-                const Tab(text: 'الخطة اليومية'),
-                const Tab(text: 'الخطة السنوية'),
+              tabs: const <Widget>[
+                Tab(text: 'الخطة اليومية'),
+                Tab(text: 'الخطة السنوية'),
               ],
             ),
             Expanded(
@@ -350,9 +352,9 @@ class _SheetPreview extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
       decoration: BoxDecoration(
         color: background,
-        border: Border(
-          right: const BorderSide(color: Color(0xFF94A3B8), width: 0.5),
-          bottom: const BorderSide(color: Color(0xFF94A3B8), width: 0.5),
+        border: const Border(
+          right: BorderSide(color: Color(0xFF94A3B8), width: 0.5),
+          bottom: BorderSide(color: Color(0xFF94A3B8), width: 0.5),
         ),
       ),
       child: Align(
@@ -576,7 +578,7 @@ class _PrintOptions extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<QuestionPrintFont>(
-              value: settings.font,
+              initialValue: settings.font,
               decoration: const InputDecoration(labelText: 'خط الطباعة'),
               items: QuestionPrintFont.values
                   .map((f) => DropdownMenuItem<QuestionPrintFont>(

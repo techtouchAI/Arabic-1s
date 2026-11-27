@@ -174,7 +174,7 @@ class StudyPlanPdf {
     }
 
     final header = pw.TableRow(
-      decoration: pw.BoxDecoration(color: _teal),
+      decoration: const pw.BoxDecoration(color: _teal),
       children: visible
           .map((c) => cell(c.label, bold: true, center: true, background: _teal))
           .toList(growable: false),
@@ -219,7 +219,7 @@ class StudyPlanPdf {
               .toList(growable: false),
         ),
       pw.TableRow(
-        decoration: pw.BoxDecoration(color: _total),
+        decoration: const pw.BoxDecoration(color: _total),
         children: <pw.Widget>[
           for (var i = 0; i < visible.length; i++)
             cell(
@@ -274,7 +274,7 @@ class StudyPlanPdf {
     }
 
     final header = pw.TableRow(
-      decoration: pw.BoxDecoration(color: _teal),
+      decoration: const pw.BoxDecoration(color: _teal),
       children: visible
           .map((c) => cell(c.label, bold: true, center: true, background: _teal))
           .toList(growable: false),
