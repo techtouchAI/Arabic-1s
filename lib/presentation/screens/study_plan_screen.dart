@@ -262,6 +262,17 @@ class _SheetPreview extends StatelessWidget {
   final StudyPlanMode mode;
   final StudyPlans plans;
 
+  /// A4 page geometry (mm). The preview keeps this exact aspect ratio so the
+  /// on-screen sheet matches the printed/exported A4 page.
+  static const double _a4WidthMm = 210.0;
+  static const double _a4HeightMm = 297.0;
+
+  /// Readable minimum/maximum on-screen sheet width (px). Below the minimum,
+  /// table columns would be too narrow to read; the sheet scrolls instead of
+  /// crushing its columns or scaling text down.
+  static const double _minSheetWidth = 640.0;
+  static const double _maxSheetWidth = 920.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -271,75 +282,117 @@ class _SheetPreview extends StatelessWidget {
     final teal = isDark ? AppColors.tealLight : AppColors.deepTeal;
 
     return Card(
-      child: Container(
-        width: double.infinity,
-        height: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: paper,
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          border: Border.all(color: border),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadii.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          // Size the sheet to the exact A4 aspect ratio. Clamp the width to a
+          // readable range; the sheet scrolls (never scales text or crushes
+          // columns) when it is larger than the available viewport.
+          final baseWidth =
+              constraints.maxWidth.clamp(_minSheetWidth, _maxSheetWidth);
+          final baseHeight = baseWidth / (_a4WidthMm / _a4HeightMm);
+          return SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  key: const ValueKey<String>('a4-sheet'),
+                  width: baseWidth,
+                  height: baseHeight,
+                  child: _A4Sheet(
+                    mode: mode,
+                    plans: plans,
+                    teal: teal,
+                    paper: paper,
+                    border: border,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// A single A4-proportioned sheet: title bar, the plan table (scrollable
+  /// inside the sheet), and a footer.
+  Widget _A4Sheet({
+    required StudyPlanMode mode,
+    required StudyPlans plans,
+    required Color teal,
+    required Color paper,
+    required Color border,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: paper,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: teal,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+              ),
+              child: Column(
+                children: <Widget>[
+                  Text(
+                    mode == StudyPlanMode.annual
+                        ? 'الخطة السنوية'
+                        : 'الخطة اليومية',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (mode == StudyPlanMode.annual)
+                    const Text(
+                      'المنهج التكاملي — اللغة العربية للصف الأول المتوسط',
+                      style: TextStyle(
+                        color: Color(0xFFE6F4F5),
+                        fontSize: 10,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: mode == StudyPlanMode.annual
+                  ? _annualTable(teal)
+                  : _dailyTable(teal),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            const Row(
               children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: teal,
-                    borderRadius: BorderRadius.circular(AppRadii.md),
-                  ),
-                  child: Column(
-                    children: <Widget>[
-                      Text(
-                        mode == StudyPlanMode.annual
-                            ? 'الخطة السنوية'
-                            : 'الخطة اليومية',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (mode == StudyPlanMode.annual)
-                        const Text(
-                          'المنهج التكاملي — اللغة العربية للصف الأول المتوسط',
-                          style: TextStyle(
-                            color: Color(0xFFE6F4F5),
-                            fontSize: 10,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
                 Expanded(
-                  child: mode == StudyPlanMode.annual
-                      ? _annualTable(teal)
-                      : _dailyTable(teal),
+                  child: Text(
+                    'منصة بيان للتعليم',
+                    style: TextStyle(fontSize: 8.5),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                const Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        'منصة بيان للتعليم',
-                        style: TextStyle(fontSize: 8.5),
-                      ),
-                    ),
-                    Text(
-                      'A4',
-                      style: TextStyle(fontSize: 8.5),
-                    ),
-                  ],
+                Text(
+                  'A4',
+                  style: TextStyle(fontSize: 8.5),
                 ),
               ],
             ),
+          ],
         ),
       ),
     );
@@ -370,8 +423,6 @@ class _SheetPreview extends StatelessWidget {
     Widget headerCell(String label) => _cell(
           Text(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
@@ -524,8 +575,6 @@ class _SheetPreview extends StatelessWidget {
                     child: _cell(
                       Text(
                         c.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -575,88 +624,91 @@ class _PrintOptions extends StatelessWidget {
         ? settings.visibleAnnualColumns
         : settings.visibleDailyColumns;
     return Card(
-      child: Padding(
+      child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                const Icon(Icons.settings, size: 18),
-                const SizedBox(width: AppSpacing.sm),
-                Text('خيارات ال sheet',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                TextButton(
-                  onPressed: () =>
-                      onChanged(settings.copyWith(
-                        visibleAnnualColumns: StudyPlanColumns.annual
-                            .map((c) => c.id)
-                            .toSet(),
-                        visibleDailyColumns: StudyPlanColumns.daily
-                            .map((c) => c.id)
-                            .toSet(),
-                      )),
-                  child: const Text('إظهار الكل'),
-                ),
-              ],
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.settings, size: 18),
+              const SizedBox(width: AppSpacing.sm),
+              Text('خيارات ال sheet',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              TextButton(
+                onPressed: () =>
+                    onChanged(settings.copyWith(
+                      visibleAnnualColumns: StudyPlanColumns.annual
+                          .map((c) => c.id)
+                          .toSet(),
+                      visibleDailyColumns: StudyPlanColumns.daily
+                          .map((c) => c.id)
+                          .toSet(),
+                    )),
+                child: const Text('إظهار الكل'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<QuestionPrintFont>(
+            initialValue: settings.font,
+            decoration: const InputDecoration(
+              labelText: 'خط الطباعة',
+              isDense: true,
             ),
-            const SizedBox(height: AppSpacing.md),
-            DropdownButtonFormField<QuestionPrintFont>(
-              initialValue: settings.font,
-              decoration: const InputDecoration(labelText: 'خط الطباعة'),
-              items: QuestionPrintFont.values
-                  .map((f) => DropdownMenuItem<QuestionPrintFont>(
-                        value: f,
-                        child: Text(f.label),
-                      ))
-                  .toList(growable: false),
-              onChanged: (QuestionPrintFont? value) {
-                if (value != null) {
-                  onChanged(settings.copyWith(font: value));
-                }
-              },
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _FontSizeSlider(
-              label: 'حجم الخط',
-              value: settings.bodyFontSize,
-              onChanged: (int value) =>
-                  onChanged(settings.copyWith(bodyFontSize: value)),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _FontSizeSlider(
-              label: 'حجم العناوين',
-              value: settings.headingFontSize,
-              onChanged: (int value) =>
-                  onChanged(settings.copyWith(headingFontSize: value)),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Text('أعمدة ال sheet',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: columns
-                  .map((c) {
-                    final isVisible = visible.contains(c.id);
-                    return FilterChip(
-                      label: Text(c.label),
-                      selected: isVisible,
-                      onSelected: (bool selected) {
-                        if (mode == StudyPlanMode.annual) {
-                          onToggleAnnual(c.id, selected);
-                        } else {
-                          onToggleDaily(c.id, selected);
-                        }
-                      },
-                    );
-                  })
-                  .toList(growable: false),
-            ),
-          ],
-        ),
+            // Fill the full available width so long font names stay inside the
+            // field instead of overflowing horizontally.
+            isExpanded: true,
+            items: QuestionPrintFont.values
+                .map((f) => DropdownMenuItem<QuestionPrintFont>(
+                      value: f,
+                      child: Text(f.label),
+                    ))
+                .toList(growable: false),
+            onChanged: (QuestionPrintFont? value) {
+              if (value != null) {
+                onChanged(settings.copyWith(font: value));
+              }
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _FontSizeSlider(
+            label: 'حجم الخط',
+            value: settings.bodyFontSize,
+            onChanged: (int value) =>
+                onChanged(settings.copyWith(bodyFontSize: value)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _FontSizeSlider(
+            label: 'حجم العناوين',
+            value: settings.headingFontSize,
+            onChanged: (int value) =>
+                onChanged(settings.copyWith(headingFontSize: value)),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Text('أعمدة ال sheet',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: columns
+                .map((c) {
+                  final isVisible = visible.contains(c.id);
+                  return FilterChip(
+                    label: Text(c.label),
+                    selected: isVisible,
+                    onSelected: (bool selected) {
+                      if (mode == StudyPlanMode.annual) {
+                        onToggleAnnual(c.id, selected);
+                      } else {
+                        onToggleDaily(c.id, selected);
+                      }
+                    },
+                  );
+                })
+                .toList(growable: false),
+          ),
+        ],
       ),
     );
   }
