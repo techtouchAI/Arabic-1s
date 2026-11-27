@@ -18,11 +18,11 @@ import '../domain/models/study_plan.dart';
 class StudyPlanPdf {
   const StudyPlanPdf._();
 
-  static const Color _teal = Color(0xFF0F766E);
-  static const Color _ink = Color(0xFF232229);
-  static const Color _muted = Color(0xFF5C5866);
-  static const Color _line = Color(0xFF94A3B8);
-  static const Color _total = Color(0xFFCCFBF1);
+  static const PdfColor _teal = PdfColor(0xFF0F766E);
+  static const PdfColor _ink = PdfColor(0xFF232229);
+  static const PdfColor _muted = PdfColor(0xFF5C5866);
+  static const PdfColor _line = PdfColor(0xFF94A3B8);
+  static const PdfColor _total = PdfColor(0xFFCCFBF1);
 
   /// Renders [plans] for [mode] to A4 PDF bytes. [settings] controls
   /// typography and column visibility; an invalid setting is rejected before
@@ -50,27 +50,23 @@ class StudyPlanPdf {
       font: regular,
       fontSize: bodySize,
       color: _ink,
-      textDirection: pw.TextDirection.rtl,
     );
     final boldBody = pw.TextStyle(
       font: bold,
       fontSize: bodySize,
       fontWeight: pw.FontWeight.bold,
       color: _ink,
-      textDirection: pw.TextDirection.rtl,
     );
     final titleStyle = pw.TextStyle(
       font: bold,
       fontSize: headingSize * 1.6,
       fontWeight: pw.FontWeight.bold,
       color: _ink,
-      textDirection: pw.TextDirection.rtl,
     );
     final subtitleStyle = pw.TextStyle(
       font: regular,
       fontSize: bodySize * 0.85,
       color: _muted,
-      textDirection: pw.TextDirection.rtl,
     );
 
     final title = mode == StudyPlanMode.annual
@@ -94,34 +90,31 @@ class StudyPlanPdf {
         margin: const pw.EdgeInsets.all(28),
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: regular, bold: bold),
-        header: (pw.Context ctx) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-          children: <pw.Widget>[
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              decoration: const pw.BoxDecoration(
-                color: _teal,
-                borderRadius: pw.BorderRadius.only(
-                  topLeft: pw.Radius.circular(8),
-                  topRight: pw.Radius.circular(8),
-                ),
-              ),
-              child: pw.Column(
-                children: <pw.Widget>[
-                  pw.Text(title, style: titleStyle.copyWith(color: const Color(0xFFFFFFFF))),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(top: 4),
-                    child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const Color(0xFFE6F4F5))),
-                  ),
-                ],
-              ),
+        header: (pw.Context ctx) => pw.Container(
+          padding: const pw.EdgeInsets.all(10),
+          decoration: const pw.BoxDecoration(
+            color: _teal,
+            borderRadius: pw.BorderRadius.only(
+              topLeft: pw.Radius.circular(8),
+              topRight: pw.Radius.circular(8),
             ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 10),
-              child: body,
-            ),
-          ],
+          ),
+          child: pw.Column(
+            children: <pw.Widget>[
+              pw.Text(title, style: titleStyle.copyWith(color: const PdfColor(0xFFFFFFFF))),
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 4),
+                child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const PdfColor(0xFFE6F4F5))),
+              ),
+            ],
+          ),
         ),
+        build: (pw.Context ctx) => <pw.Widget>[
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 10),
+            child: body,
+          ),
+        ],
         footer: (pw.Context ctx) => pw.Container(
           margin: const pw.EdgeInsets.only(top: 12),
           padding: const pw.EdgeInsets.only(top: 6),
@@ -166,7 +159,7 @@ class StudyPlanPdf {
     final compact = plans.settings.compactLines;
     final pad = compact ? 3.0 : 6.0;
 
-    pw.Widget cell(String text, {bool bold = false, bool center = false, Color? background}) {
+    pw.Widget cell(String text, {bool bold = false, bool center = false, PdfColor? background}) {
       return pw.TableCell(
         padding: pw.EdgeInsets.all(pad),
         decoration: pw.BoxDecoration(
@@ -268,7 +261,7 @@ class StudyPlanPdf {
     final compact = plans.settings.compactLines;
     final pad = compact ? 3.0 : 6.0;
 
-    pw.Widget cell(String text, {bool bold = false, bool center = false, Color? background}) {
+    pw.Widget cell(String text, {bool bold = false, bool center = false, PdfColor? background}) {
       return pw.TableCell(
         padding: pw.EdgeInsets.all(pad),
         decoration: pw.BoxDecoration(
