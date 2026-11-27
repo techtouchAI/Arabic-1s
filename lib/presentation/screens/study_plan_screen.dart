@@ -330,12 +330,12 @@ class _SheetPreview extends StatelessWidget {
                         'منصة بيان للتعليم',
                         style: TextStyle(fontSize: 8.5),
                       ),
-                      Text(
-                        'A4',
-                        style: TextStyle(fontSize: 8.5),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      'A4',
+                      style: TextStyle(fontSize: 8.5),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -425,7 +425,7 @@ class _SheetPreview extends StatelessWidget {
       };
       return Row(
         children: visible
-            .map((c) => Expanded(flex: c.weight, child: byId[c.id]!))
+            .map((c) => Expanded(flex: c.weight.toInt(), child: byId[c.id]!))
             .toList(growable: false),
       );
     }
@@ -496,7 +496,7 @@ class _SheetPreview extends StatelessWidget {
       };
       return Row(
         children: visible
-            .map((c) => Expanded(flex: c.weight, child: byId[c.id]!))
+            .map((c) => Expanded(flex: c.weight.toInt(), child: byId[c.id]!))
             .toList(growable: false),
       );
     }
@@ -536,8 +536,8 @@ class _PrintOptions extends StatelessWidget {
 
   final StudyPlanMode mode;
   final ValueChanged<StudyPlanSettings> onChanged;
-  final ValueChanged<(String, bool)> onToggleAnnual;
-  final ValueChanged<(String, bool)> onToggleDaily;
+  final void Function(String, bool) onToggleAnnual;
+  final void Function(String, bool) onToggleDaily;
 
   @override
   Widget build(BuildContext context) {
@@ -619,9 +619,9 @@ class _PrintOptions extends StatelessWidget {
                       selected: isVisible,
                       onSelected: (bool selected) {
                         if (mode == StudyPlanMode.annual) {
-                          onToggleAnnual((c.id, selected));
+                          onToggleAnnual(c.id, selected);
                         } else {
-                          onToggleDaily((c.id, selected));
+                          onToggleDaily(c.id, selected);
                         }
                       },
                     );
