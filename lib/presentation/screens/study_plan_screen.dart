@@ -273,6 +273,7 @@ class _SheetPreview extends StatelessWidget {
     return Card(
       child: Container(
         width: double.infinity,
+        height: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: paper,
@@ -281,10 +282,8 @@ class _SheetPreview extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          child: SizedBox(
-            height: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Container(
                   padding: const EdgeInsets.symmetric(
