@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'test_harness.dart';
 
 void main() {
-  LoadedAppContent get content => loadTestContentSync();
+  final LoadedAppContent content = loadTestContentSync();
 
   group('default annual plan', () {
     test('is generated in official curriculum order with balanced days', () {
@@ -27,7 +27,10 @@ void main() {
       for (final row in plans.skip(1).take(19)) {
         expect(row.teachingDays, 6);
       }
-      expect(plans.totalTeachingDays, 2 + 19 * 6 + 4);
+      expect(
+        plans.fold(0, (sum, r) => sum + r.teachingDays),
+        2 + 19 * 6 + 4,
+      );
 
       // أسابيع البداية غير متناقصة.
       for (var i = 1; i < plans.length; i++) {
@@ -38,7 +41,10 @@ void main() {
     test('is deterministic across generations', () {
       final a = buildDefaultAnnualPlan(content.library);
       final b = buildDefaultAnnualPlan(content.library);
-      expect(a.toJson(), equals(b.toJson()));
+      expect(
+        a.map((r) => r.toJson()),
+        equals(b.map((r) => r.toJson())),
+      );
     });
 
     test('every row carries the unit content for printing', () {
