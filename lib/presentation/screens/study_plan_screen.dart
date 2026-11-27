@@ -227,21 +227,24 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
                     const SizedBox(width: AppSpacing.lg),
                     Flexible(
                       flex: _mode == StudyPlanMode.annual ? 5 : 6,
-                      child: _mode == StudyPlanMode.annual
-                          ? _AnnualEditor(
-                              plans: _plans,
-                              onChange: state.updateAnnualRow,
-                              onAdd: () => _addAnnualRow(state),
-                              onDelete: state.removeAnnualRow,
-                              onReset: _reset,
-                            )
-                          : _DailyEditor(
-                              plans: _plans,
-                              onChange: state.updateDailyEntry,
-                              onAdd: () => _addDailyEntry(state),
-                              onDelete: state.removeDailyEntry,
-                              onReset: _reset,
-                            ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 720),
+                        child: _mode == StudyPlanMode.annual
+                            ? _AnnualEditor(
+                                plans: _plans,
+                                onChange: state.updateAnnualRow,
+                                onAdd: () => _addAnnualRow(state),
+                                onDelete: state.removeAnnualRow,
+                                onReset: _reset,
+                              )
+                            : _DailyEditor(
+                                plans: _plans,
+                                onChange: state.updateDailyEntry,
+                                onAdd: () => _addDailyEntry(state),
+                                onDelete: state.removeDailyEntry,
+                                onReset: _reset,
+                              ),
+                      ),
                     ),
                   ],
                 ),
