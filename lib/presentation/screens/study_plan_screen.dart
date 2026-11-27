@@ -216,7 +216,7 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
             ),
             Expanded(
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                     Flexible(
                       flex: _mode == StudyPlanMode.annual ? 7 : 6,
