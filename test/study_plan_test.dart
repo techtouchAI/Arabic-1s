@@ -120,8 +120,8 @@ void main() {
 
     test('repairs dangling units and duplicate/empty ids', () {
       const plans = StudyPlans(
-        annualRows: const <AnnualPlanRow>[
-          const AnnualPlanRow(
+        annualRows: <AnnualPlanRow>[
+          AnnualPlanRow(
             id: '',
             sectionLabel: 'س',
             unitId: 'intro',
@@ -134,7 +134,7 @@ void main() {
             startWeek: 1,
             examFocus: '',
           ),
-          const AnnualPlanRow(
+          AnnualPlanRow(
             id: '',
             sectionLabel: 'س',
             unitId: 'does-not-exist',
@@ -149,8 +149,8 @@ void main() {
           ),
         ],
         dailyEntries: <DailyPlanEntry>[
-          const DailyPlanEntry(id: 'd', dayLabel: 'يوم', focus: 'x', content: ''),
-          const DailyPlanEntry(id: 'd', dayLabel: 'يوم', focus: 'x', content: ''),
+          DailyPlanEntry(id: 'd', dayLabel: 'يوم', focus: 'x', content: ''),
+          DailyPlanEntry(id: 'd', dayLabel: 'يوم', focus: 'x', content: ''),
         ],
       );
 
@@ -167,13 +167,13 @@ void main() {
   });
 
   group('StudyPlanService', () {
-    StudyPlanService _service() => StudyPlanService(
+    StudyPlanService makeService() => StudyPlanService(
           library: content.library,
           repository: MemoryStudyPlanRepository(),
         );
 
     test('loads defaults on first run and persists them', () async {
-      final service = _service();
+      final service = makeService();
       final plans = await service.load();
       expect(service.isLoaded, isTrue);
       expect(plans.annualRows, hasLength(21));
@@ -196,7 +196,7 @@ void main() {
     });
 
     test('editing rows and entries persists and keeps the sheet valid', () async {
-      final service = _service();
+      final service = makeService();
       await service.load();
       final plans = service.plans;
 
@@ -234,7 +234,7 @@ void main() {
     });
 
     test('column visibility and settings are applied', () async {
-      final service = _service();
+      final service = makeService();
       await service.load();
       service.setAnnualColumnVisible('notes', false);
       expect(
@@ -255,7 +255,7 @@ void main() {
     });
 
     test('backup export and restore round-trip', () async {
-      final service = _service();
+      final service = makeService();
       await service.load();
       service.updateAnnualRow(
         service.plans.annualRows.first.copyWith(unitLabel: 'موحفظ'),
