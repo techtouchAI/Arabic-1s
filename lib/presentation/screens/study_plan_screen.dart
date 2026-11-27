@@ -447,22 +447,32 @@ class _SheetPreview extends StatelessWidget {
                   Expanded(flex: c.weight.toInt(), child: headerCell(c.label)))
               .toList(growable: false),
         ),
-        ...plans.annualRows.map(dataRow),
-        _cell(
-          Container(
+        Expanded(
+          child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            alignment: Alignment.center,
-            child: Text(
-              'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.deepTeal,
-              ),
-            ),
+            itemCount: plans.annualRows.length + 1,
+            itemBuilder: (BuildContext context, int index) {
+              if (index == plans.annualRows.length) {
+                return _cell(
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                  ),
+                  background: const Color(0xFFCCFBF1),
+                  center: true,
+                );
+              }
+              return dataRow(plans.annualRows[index]);
+            },
           ),
-          background: const Color(0xFFCCFBF1),
-          center: true,
         ),
       ],
     );
@@ -530,7 +540,14 @@ class _SheetPreview extends StatelessWidget {
                   ))
               .toList(growable: false),
         ),
-        ...plans.dailyEntries.map(dataRow),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: plans.dailyEntries.length,
+            itemBuilder: (BuildContext context, int index) =>
+                dataRow(plans.dailyEntries[index]),
+          ),
+        ),
       ],
     );
   }
