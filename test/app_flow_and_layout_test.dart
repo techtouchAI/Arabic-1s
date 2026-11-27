@@ -289,7 +289,13 @@ void main() {
         // Sheet content is present and no header is hidden/elided.
         expect(find.text('A4'), findsOneWidget);
         expect(find.text('منصة بيان للتعليم'), findsOneWidget);
-        expect(find.text(mode.header), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey<String>('a4-sheet')),
+            matching: find.text(mode.header),
+          ),
+          findsOneWidget,
+        );
 
         // Any RenderFlex/BoxConstraints overflow throws during pump.
         await _settle(tester);

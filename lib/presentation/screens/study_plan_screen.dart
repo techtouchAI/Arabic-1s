@@ -631,9 +631,11 @@ class _PrintOptions extends StatelessWidget {
             children: <Widget>[
               const Icon(Icons.settings, size: 18),
               const SizedBox(width: AppSpacing.sm),
-              Text('خيارات ال sheet',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
+              Expanded(
+                child: Text('خيارات ال sheet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.start),
+              ),
               TextButton(
                 onPressed: () =>
                     onChanged(settings.copyWith(
