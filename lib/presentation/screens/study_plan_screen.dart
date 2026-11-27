@@ -87,6 +87,7 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
   }
 
   Future<void> _reset() async {
+    final state = AppScope.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
@@ -106,8 +107,8 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      await AppScope.of(context).resetStudyPlans();
+    if (confirmed == true && mounted) {
+      await state.resetStudyPlans();
     }
   }
 
