@@ -18,11 +18,11 @@ import '../domain/models/study_plan.dart';
 class StudyPlanPdf {
   const StudyPlanPdf._();
 
-  static const PdfColor _teal = PdfColor(0x0F, 0x76, 0x6E);
-  static const PdfColor _ink = PdfColor(0x23, 0x22, 0x29);
-  static const PdfColor _muted = PdfColor(0x5C, 0x58, 0x66);
-  static const PdfColor _line = PdfColor(0x94, 0xA3, 0xB8);
-  static const PdfColor _total = PdfColor(0xCC, 0xFB, 0xF1);
+  static const PdfColor _teal = PdfColor(0x0F / 255, 0x76 / 255, 0x6E / 255);
+  static const PdfColor _ink = PdfColor(0x23 / 255, 0x22 / 255, 0x29 / 255);
+  static const PdfColor _muted = PdfColor(0x5C / 255, 0x58 / 255, 0x66 / 255);
+  static const PdfColor _line = PdfColor(0x94 / 255, 0xA3 / 255, 0xB8 / 255);
+  static const PdfColor _total = PdfColor(0xCC / 255, 0xFB / 255, 0xF1 / 255);
 
   /// Renders [plans] for [mode] to A4 PDF bytes. [settings] controls
   /// typography and column visibility; an invalid setting is rejected before
@@ -101,10 +101,10 @@ class StudyPlanPdf {
           ),
           child: pw.Column(
             children: <pw.Widget>[
-              pw.Text(title, style: titleStyle.copyWith(color: const PdfColor(0xFF, 0xFF, 0xFF))),
+              pw.Text(title, style: titleStyle.copyWith(color: const PdfColor(1.0, 1.0, 1.0))),
               pw.Padding(
                 padding: const pw.EdgeInsets.only(top: 4),
-                child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const PdfColor(0xE6, 0xF4, 0xF5))),
+                child: pw.Text(subtitle, style: subtitleStyle.copyWith(color: const PdfColor(0xE6 / 255, 0xF4 / 255, 0xF5 / 255))),
               ),
             ],
           ),
@@ -160,7 +160,7 @@ class StudyPlanPdf {
     final pad = compact ? 3.0 : 6.0;
 
     pw.Widget cell(String text, {bool bold = false, bool center = false, PdfColor? background}) {
-      return pw.TableCell(
+      return pw.Container(
         padding: pw.EdgeInsets.all(pad),
         decoration: pw.BoxDecoration(
           color: background,
@@ -219,22 +219,17 @@ class StudyPlanPdf {
               .toList(growable: false),
         ),
       pw.TableRow(
-        decoration: const pw.BoxDecoration(color: _total),
-        children: <pw.TableCell>[
-          pw.TableCell(
-            colspan: visible.length,
-            decoration: pw.BoxDecoration(
-              color: _total,
-              border: pw.Border.all(color: _line, width: 0.5),
+        decoration: pw.BoxDecoration(color: _total),
+        children: <pw.Widget>[
+          for (var i = 0; i < visible.length; i++)
+            cell(
+              i == 0
+                  ? 'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً'
+                  : (i == 1 ? '— الفصول: ${toArabicDigits(plans.totalWeeks)} أسبوعاً' : ''),
+              bold: true,
+              center: true,
+              background: _total,
             ),
-            child: pw.Align(
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً — الفصول: ${toArabicDigits(plans.totalWeeks)} أسبوعاً',
-                style: boldStyle,
-              ),
-            ),
-          ),
         ],
       ),
     ];
@@ -262,7 +257,7 @@ class StudyPlanPdf {
     final pad = compact ? 3.0 : 6.0;
 
     pw.Widget cell(String text, {bool bold = false, bool center = false, PdfColor? background}) {
-      return pw.TableCell(
+      return pw.Container(
         padding: pw.EdgeInsets.all(pad),
         decoration: pw.BoxDecoration(
           color: background,
