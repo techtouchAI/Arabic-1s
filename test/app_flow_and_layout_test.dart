@@ -256,8 +256,8 @@ void main() {
       addTearDown(tester.view.reset);
 
       for (final mode in const <_PlanModeCase>[
-        const _PlanModeCase(tab: 'الخطة السنوية', header: 'الوحدة'),
-        const _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم'),
+        _PlanModeCase(tab: 'الخطة السنوية', header: 'الوحدة'),
+        _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم'),
       ]) {
         final state = createTestAppState(
           selectedPart: CurriculumPart.part1,
