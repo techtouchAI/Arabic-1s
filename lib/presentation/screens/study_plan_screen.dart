@@ -438,8 +438,8 @@ class _SheetPreview extends StatelessWidget {
     final minWidth = visible.length * _minTableCellWidth + 8.0;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minWidth),
+      child: SizedBox(
+        width: minWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -529,8 +529,8 @@ class _SheetPreview extends StatelessWidget {
     final minWidth = visible.length * _minTableCellWidth + 8.0;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minWidth),
+      child: SizedBox(
+        width: minWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
