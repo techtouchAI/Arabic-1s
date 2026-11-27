@@ -282,7 +282,7 @@ class _SheetPreview extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.lg),
           child: SizedBox(
-            height: 600,
+            height: double.infinity,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
