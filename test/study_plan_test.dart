@@ -102,7 +102,7 @@ void main() {
     });
 
     test('rejects out-of-range font sizes', () {
-      final settings = StudyPlanSettings(bodyFontSize: 4, headingFontSize: 15);
+      const settings = StudyPlanSettings(bodyFontSize: 4, headingFontSize: 15);
       expect(settings.isValid, isFalse);
       expect(StudyPlanSettings.isValidFontSize(20), isTrue);
       expect(StudyPlanSettings.isValidFontSize(21), isFalse);
@@ -112,16 +112,16 @@ void main() {
   group('StudyPlans.sanitize', () {
     test('fills an empty plan with defaults', () {
       final sanitized =
-          StudyPlans(annualRows: const <AnnualPlanRow>[], dailyEntries: const <DailyPlanEntry>[])
+          const StudyPlans(annualRows: <AnnualPlanRow>[], dailyEntries: <DailyPlanEntry>[])
               .sanitize(content.library);
       expect(sanitized.annualRows, hasLength(21));
       expect(sanitized.dailyEntries, hasLength(60));
     });
 
     test('repairs dangling units and duplicate/empty ids', () {
-      final plans = StudyPlans(
-        annualRows: <AnnualPlanRow>[
-          AnnualPlanRow(
+      const plans = StudyPlans(
+        annualRows: const <AnnualPlanRow>[
+          const AnnualPlanRow(
             id: '',
             sectionLabel: 'س',
             unitId: 'intro',
@@ -134,7 +134,7 @@ void main() {
             startWeek: 1,
             examFocus: '',
           ),
-          AnnualPlanRow(
+          const AnnualPlanRow(
             id: '',
             sectionLabel: 'س',
             unitId: 'does-not-exist',
@@ -213,7 +213,7 @@ void main() {
       expect(service.plans.dailyEntries.first.homework, 'واجب');
 
       service.appendAnnualRow(
-        AnnualPlanRow(
+        const AnnualPlanRow(
           id: 'annual-x',
           sectionLabel: 'سطر',
           unitId: '',

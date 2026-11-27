@@ -6,7 +6,7 @@
 /// pipeline) keeps printing deterministic, offline and unit-testable, and
 /// lets the teacher's column visibility and typography settings map directly
 /// onto the printed sheet.
-import 'dart:typed_data';
+library;
 
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
