@@ -442,9 +442,10 @@ class _SheetPreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Row(
-          children: visible.map((c) => headerCell(c.label)).toList(
-            growable: false,
-          ),
+          children: visible
+              .map((c) =>
+                  Expanded(flex: c.weight.toInt(), child: headerCell(c.label)))
+              .toList(growable: false),
         ),
         ...plans.annualRows.map(dataRow),
         _cell(
@@ -514,15 +515,18 @@ class _SheetPreview extends StatelessWidget {
       children: <Widget>[
         Row(
           children: visible
-              .map((c) => _cell(
-                    Text(c.label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                        )),
-                    background: teal,
-                    center: true,
+              .map((c) => Expanded(
+                    flex: c.weight.toInt(),
+                    child: _cell(
+                      Text(c.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                          )),
+                      background: teal,
+                      center: true,
+                    ),
                   ))
               .toList(growable: false),
         ),
