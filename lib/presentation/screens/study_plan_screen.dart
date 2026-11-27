@@ -708,7 +708,9 @@ class _AnnualEditor extends StatelessWidget {
           title: 'الخطة السنوية',
           subtitle:
               '${plans.annualRows.length} وحدة — ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
-          trailing: Row(
+          trailing: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppSpacing.xs,
             children: <Widget>[
               IconButton.outlined(
                 tooltip: 'إعادة الضبط',
@@ -991,7 +993,9 @@ class _DailyEditor extends StatelessWidget {
         SectionHeader(
           title: 'الخطة اليومية',
           subtitle: '${plans.dailyEntries.length} يوماً مجدولاً',
-          trailing: Row(
+          trailing: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: AppSpacing.xs,
             children: <Widget>[
               IconButton.outlined(
                 tooltip: 'إعادة الضبط',
