@@ -262,6 +262,11 @@ class _SheetPreview extends StatelessWidget {
   final StudyPlanMode mode;
   final StudyPlans plans;
 
+  /// Minimum on-screen width (px) for a single table column. Keeps cell text
+  /// at its natural, readable font size; the table scrolls horizontally on
+  /// narrow screens instead of crushing columns or scaling text down.
+  static const double _minTableCellWidth = 60.0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -368,15 +373,12 @@ class _SheetPreview extends StatelessWidget {
         .toList(growable: false);
 
     Widget headerCell(String label) => _cell(
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 10,
-              ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
             ),
           ),
           background: teal,
@@ -433,43 +435,52 @@ class _SheetPreview extends StatelessWidget {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Row(
-          children: visible
-              .map((c) =>
-                  Expanded(flex: c.weight.toInt(), child: headerCell(c.label)))
-              .toList(growable: false),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: plans.annualRows.length + 1,
-            itemBuilder: (BuildContext context, int index) {
-              if (index == plans.annualRows.length) {
-                return _cell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
-                      style: const TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.deepTeal,
+    final minWidth = visible.length * _minTableCellWidth + 8.0;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minWidth),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              children: visible
+                  .map((c) => Expanded(
+                        flex: c.weight.toInt(),
+                        child: headerCell(c.label),
+                      ))
+                  .toList(growable: false),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: plans.annualRows.length + 1,
+                itemBuilder: (BuildContext context, int index) {
+                  if (index == plans.annualRows.length) {
+                    return _cell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepTeal,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  background: const Color(0xFFCCFBF1),
-                  center: true,
-                );
-              }
-              return dataRow(plans.annualRows[index]);
-            },
-          ),
+                      background: const Color(0xFFCCFBF1),
+                      center: true,
+                    );
+                  }
+                  return dataRow(plans.annualRows[index]);
+                },
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -515,40 +526,44 @@ class _SheetPreview extends StatelessWidget {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Row(
-          children: visible
-              .map((c) => Expanded(
-                    flex: c.weight.toInt(),
-                    child: _cell(
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          c.label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 10,
+    final minWidth = visible.length * _minTableCellWidth + 8.0;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minWidth),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              children: visible
+                  .map((c) => Expanded(
+                        flex: c.weight.toInt(),
+                        child: _cell(
+                          Text(
+                            c.label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
                           ),
+                          background: teal,
+                          center: true,
                         ),
-                      ),
-                      background: teal,
-                      center: true,
-                    ),
-                  ))
-              .toList(growable: false),
+                      ))
+                  .toList(growable: false),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: plans.dailyEntries.length,
+                itemBuilder: (BuildContext context, int index) =>
+                    dataRow(plans.dailyEntries[index]),
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: plans.dailyEntries.length,
-            itemBuilder: (BuildContext context, int index) =>
-                dataRow(plans.dailyEntries[index]),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
