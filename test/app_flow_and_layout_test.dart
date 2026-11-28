@@ -316,12 +316,19 @@ void main() {
         expect(find.byKey(sheetKey), findsOneWidget);
         expect(find.text('A4'), findsOneWidget);
         expect(find.text('منصة بيان للتعليم'), findsOneWidget);
+        final sheetTexts = tester
+            .widgetList(
+              find.descendant(
+                of: find.byKey(sheetKey),
+                matching: find.byType(Text),
+              ),
+            )
+            .map((w) => (w as Text).data ?? '')
+            .toList();
         expect(
-          find.descendant(
-            of: find.byKey(sheetKey),
-            matching: find.textContaining(mode.header),
-          ),
-          findsOneWidget,
+          sheetTexts,
+          contains(mode.header),
+          reason: 'sheet texts: ${sheetTexts.take(12).join(' | ')}',
         );
 
         // Daily topics are shown in full inside the sheet.
