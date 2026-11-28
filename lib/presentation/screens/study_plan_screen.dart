@@ -108,6 +108,54 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
     );
   }
 
+  /// Opens the annual-row editor as a modal popup. Editing happens in a
+  /// bottom sheet so the plan sheet itself is never split or resized.
+  Future<void> _openAnnualEditor(AnnualPlanRow row) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        final state = AppScope.of(context);
+        return _EditorSheet(
+          title: 'تحرير الوحدة',
+          child: _AnnualRowCard(
+            row: row,
+            onChange: state.updateAnnualRow,
+            onDelete: () {
+              state.removeAnnualRow(row.id);
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  /// Opens the daily-entry editor as a modal popup, keeping the plan sheet
+  /// as the single full-width display.
+  Future<void> _openDailyEditor(DailyPlanEntry entry) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        final state = AppScope.of(context);
+        return _EditorSheet(
+          title: 'تحرير اليوم',
+          child: _DailyEntryCard(
+            entry: entry,
+            onChange: state.updateDailyEntry,
+            onDelete: () {
+              state.removeDailyEntry(entry.id);
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _reset() async {
     final state = AppScope.of(context);
     final confirmed = await showDialog<bool>(
@@ -137,35 +185,35 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
   void _addAnnualRow(AppState state) {
     final plans = _plans;
     final index = plans.annualRows.length + 1;
-    state.appendAnnualRow(
-      AnnualPlanRow(
-        id: 'annual-custom-$index',
-        sectionLabel: 'سطر مخصص',
-        unitId: '',
-        unitLabel: 'سطر جديد',
-        unitTitle: '',
-        pages: '',
-        readingTitle: '',
-        grammarTitle: '',
-        teachingDays: 6,
-        startWeek: plans.totalWeeks + 1,
-        examFocus: '',
-        notes: '',
-      ),
+    final row = AnnualPlanRow(
+      id: 'annual-custom-$index',
+      sectionLabel: 'سطر مخصص',
+      unitId: '',
+      unitLabel: 'سطر جديد',
+      unitTitle: '',
+      pages: '',
+      readingTitle: '',
+      grammarTitle: '',
+      teachingDays: 6,
+      startWeek: plans.totalWeeks + 1,
+      examFocus: '',
+      notes: '',
     );
+    state.appendAnnualRow(row);
+    _openAnnualEditor(row);
   }
 
   void _addDailyEntry(AppState state) {
     final plans = _plans;
     final index = plans.dailyEntries.length + 1;
-    state.appendDailyEntry(
-      DailyPlanEntry(
-        id: 'daily-custom-$index',
-        dayLabel: dayLabelFor(index),
-        focus: StudyPlanFocus.options.first,
-        content: '',
-      ),
+    final entry = DailyPlanEntry(
+      id: 'daily-custom-$index',
+      dayLabel: dayLabelFor(index),
+      focus: StudyPlanFocus.options.first,
+      content: '',
     );
+    state.appendDailyEntry(entry);
+    _openDailyEditor(entry);
   }
 
   @override
@@ -220,38 +268,42 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            // Compact toolbar: summary + add/reset actions. It sits above the
+            // single full-width sheet; the sheet is never split in two.
+            SectionHeader(
+              title: _mode == StudyPlanMode.annual
+                  ? '${_plans.annualRows.length} وحدة — '
+                      '${toArabicDigits(_plans.totalTeachingDays)} يوماً دراسياً'
+                  : '${_plans.dailyEntries.length} يوماً مجدولاً',
+              accent: Theme.of(context).colorScheme.primary,
+              trailing: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: AppSpacing.xs,
                 children: <Widget>[
-                    Flexible(
-                      flex: _mode == StudyPlanMode.annual ? 7 : 6,
-                      child: _SheetPreview(mode: _mode, plans: _plans),
+                  IconButton.outlined(
+                    tooltip: 'إعادة الضبط',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _reset,
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _mode == StudyPlanMode.annual
+                        ? _addAnnualRow(state)
+                        : _addDailyEntry(state),
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      _mode == StudyPlanMode.annual ? 'سطر' : 'يوم',
                     ),
-                    const SizedBox(width: AppSpacing.lg),
-                    Flexible(
-                      flex: _mode == StudyPlanMode.annual ? 5 : 6,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 720),
-                        child: _mode == StudyPlanMode.annual
-                            ? _AnnualEditor(
-                                plans: _plans,
-                                onChange: state.updateAnnualRow,
-                                onAdd: () => _addAnnualRow(state),
-                                onDelete: state.removeAnnualRow,
-                                onReset: _reset,
-                              )
-                            : _DailyEditor(
-                                plans: _plans,
-                                onChange: state.updateDailyEntry,
-                                onAdd: () => _addDailyEntry(state),
-                                onDelete: state.removeDailyEntry,
-                                onReset: _reset,
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _PlanDisplay(
+                mode: _mode,
+                plans: _plans,
+                onEditAnnual: _openAnnualEditor,
+                onEditDaily: _openDailyEditor,
+              ),
             ),
           ],
         ),
@@ -260,24 +312,29 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
   }
 }
 
-// ---- A4 sheet preview -----------------------------------------------------
+// ---- Plan sheet display ---------------------------------------------------
 
-class _SheetPreview extends StatelessWidget {
-  const _SheetPreview({required this.mode, required this.plans});
+/// The single full-width A4-ratio plan sheet. The sheet is the only content
+/// area of the screen (no split preview/editor): it fills the available width
+/// and keeps the exact A4 aspect ratio; long content scrolls inside the sheet
+/// and the whole sheet scrolls when it is taller than the viewport.
+class _PlanDisplay extends StatelessWidget {
+  const _PlanDisplay({
+    required this.mode,
+    required this.plans,
+    required this.onEditAnnual,
+    required this.onEditDaily,
+  });
 
   final StudyPlanMode mode;
   final StudyPlans plans;
+  final void Function(AnnualPlanRow row) onEditAnnual;
+  final void Function(DailyPlanEntry entry) onEditDaily;
 
-  /// A4 page geometry (mm). The preview keeps this exact aspect ratio so the
-  /// on-screen sheet matches the printed/exported A4 page.
+  /// A4 page geometry (mm). The on-screen sheet keeps this exact ratio so
+  /// the display matches the printed/exported A4 page.
   static const double _a4WidthMm = 210.0;
   static const double _a4HeightMm = 297.0;
-
-  /// Readable minimum/maximum on-screen sheet width (px). Below the minimum,
-  /// table columns would be too narrow to read; the sheet scrolls instead of
-  /// crushing its columns or scaling text down.
-  static const double _minSheetWidth = 640.0;
-  static const double _maxSheetWidth = 920.0;
 
   @override
   Widget build(BuildContext context) {
@@ -290,29 +347,28 @@ class _SheetPreview extends StatelessWidget {
     return Card(
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          // Size the sheet to the exact A4 aspect ratio. Clamp the width to a
-          // readable range; the sheet scrolls (never scales text or crushes
-          // columns) when it is larger than the available viewport.
-          final baseWidth =
-              constraints.maxWidth.clamp(_minSheetWidth, _maxSheetWidth);
-          final baseHeight = baseWidth / (_a4WidthMm / _a4HeightMm);
+          // Fill the available width: no minimum-width clamp, so every
+          // column/topic is visible without horizontal scrolling or crushed
+          // text. The height follows the exact A4 ratio; content that does
+          // not fit scrolls inside the sheet.
+          final baseWidth = constraints.maxWidth;
+          final baseHeight = baseWidth * (_a4HeightMm / _a4WidthMm);
           return SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: Align(
               alignment: Alignment.topCenter,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  key: const ValueKey<String>('a4-sheet'),
-                  width: baseWidth,
-                  height: baseHeight,
-                  child: _a4Sheet(
-                    mode: mode,
-                    plans: plans,
-                    teal: teal,
-                    paper: paper,
-                    border: border,
-                  ),
+              child: SizedBox(
+                key: const ValueKey<String>('a4-sheet'),
+                width: baseWidth,
+                height: baseHeight,
+                child: _PlanSheet(
+                  mode: mode,
+                  plans: plans,
+                  teal: teal,
+                  paper: paper,
+                  border: border,
+                  onEditAnnual: onEditAnnual,
+                  onEditDaily: onEditDaily,
                 ),
               ),
             ),
@@ -321,16 +377,38 @@ class _SheetPreview extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// A single A4-proportioned sheet: title bar, the plan table (scrollable
-  /// inside the sheet), and a footer.
-  Widget _a4Sheet({
-    required StudyPlanMode mode,
-    required StudyPlans plans,
-    required Color teal,
-    required Color paper,
-    required Color border,
-  }) {
+/// A single A4 sheet: header band, scrollable plan content and footer.
+class _PlanSheet extends StatelessWidget {
+  const _PlanSheet({
+    required this.mode,
+    required this.plans,
+    required this.teal,
+    required this.paper,
+    required this.border,
+    required this.onEditAnnual,
+    required this.onEditDaily,
+  });
+
+  final StudyPlanMode mode;
+  final StudyPlans plans;
+  final Color teal;
+  final Color paper;
+  final Color border;
+  final void Function(AnnualPlanRow row) onEditAnnual;
+  final void Function(DailyPlanEntry entry) onEditDaily;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = plans.settings;
+    final headingSize = settings.headingFontSize.toDouble();
+    final bodySize = settings.bodyFontSize.toDouble();
+    final subtitle = mode == StudyPlanMode.annual
+        ? 'المنهج التكاملي — اللغة العربية للصف الأول المتوسط'
+        : 'جدول التدريس اليومي — '
+            '${toArabicDigits(plans.dailyEntries.length)} يوماً';
+
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -360,28 +438,43 @@ class _SheetPreview extends StatelessWidget {
                     mode == StudyPlanMode.annual
                         ? 'الخطة السنوية'
                         : 'الخطة اليومية',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: headingSize * 1.2,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (mode == StudyPlanMode.annual)
-                    const Text(
-                      'المنهج التكاملي — اللغة العربية للصف الأول المتوسط',
-                      style: TextStyle(
-                        color: Color(0xFFE6F4F5),
-                        fontSize: 10,
-                      ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFFE6F4F5),
+                      fontSize: 10,
                     ),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Expanded(
-              child: mode == StudyPlanMode.annual
-                  ? _annualTable(teal)
-                  : _dailyTable(teal),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+                children: mode == StudyPlanMode.annual
+                    ? _annualChildren(
+                      plans: plans,
+                      teal: teal,
+                      border: border,
+                      bodySize: bodySize,
+                      onEditAnnual: onEditAnnual,
+                    )
+                    : _dailyChildren(
+                      plans: plans,
+                      teal: teal,
+                      border: border,
+                      bodySize: bodySize,
+                      onEditDaily: onEditDaily,
+                    ),
+              ),
             ),
             const SizedBox(height: AppSpacing.xs),
             const Row(
@@ -404,208 +497,610 @@ class _SheetPreview extends StatelessWidget {
     );
   }
 
-  Widget _cell(Widget child, {Color? background, bool center = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        border: const Border(
-          right: BorderSide(color: Color(0xFF94A3B8), width: 0.5),
-          bottom: BorderSide(color: Color(0xFF94A3B8), width: 0.5),
+  List<Widget> _annualChildren({
+    required StudyPlans plans,
+    required Color teal,
+    required Color border,
+    required double bodySize,
+    required void Function(AnnualPlanRow row) onEditAnnual,
+  }) {
+    final visible = plans.settings.visibleAnnualColumns;
+    final children = <Widget>[];
+
+    if (plans.annualRows.isEmpty) {
+      children.add(_emptyHint(
+        'لا توجد وحدات — اضغط «سطر» لإضافة سطر جديد',
+        border,
+      ));
+      return children;
+    }
+
+    String? currentSection;
+    for (final row in plans.annualRows) {
+      if (row.sectionLabel != currentSection) {
+        currentSection = row.sectionLabel;
+        children.add(_sectionDivider(currentSection, teal));
+      }
+      children.add(
+        _AnnualUnitCard(
+          row: row,
+          visible: visible,
+          teal: teal,
+          border: border,
+          bodySize: bodySize,
+          onEdit: () => onEditAnnual(row),
         ),
-      ),
-      child: Align(
-        alignment: center ? Alignment.center : Alignment.topRight,
-        child: child,
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _annualTable(Color teal) {
-    final visible = StudyPlanColumns.annual
-        .where((c) => plans.settings.visibleAnnualColumns.contains(c.id))
-        .toList(growable: false);
-
-    Widget headerCell(String label) => _cell(
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
+    children.add(
+      Container(
+        margin: const EdgeInsets.only(top: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: const Color(0xFFCCFBF1),
+          border: Border.all(color: border, width: 0.5),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        child: Align(
+          alignment: Alignment.center,
+          child: Text(
+            'المجموع: '
+            '${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
+            style: TextStyle(
+              fontSize: bodySize,
               fontWeight: FontWeight.w700,
-              fontSize: 10,
+              color: teal,
             ),
           ),
-          background: teal,
-          center: true,
-        );
+        ),
+      ),
+    );
+    return children;
+  }
 
-    Widget dataRow(AnnualPlanRow row) {
-      final byId = <String, Widget>{
-        'index': _cell(
-          Text(toArabicDigits(row.id.split('-').last),
-              style: const TextStyle(fontSize: 9.5)),
-          center: true,
-        ),
-        'unit': _cell(
-          Text(row.unitLabel, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'pages': _cell(
-          Text(row.pages, style: const TextStyle(fontSize: 9.5)),
-          center: true,
-        ),
-        'reading': _cell(
-          Text(row.readingTitle, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'grammar': _cell(
-          Text(row.grammarTitle, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'orthography': _cell(
-          Text(
-            row.orthographyTitle.isNotEmpty ? row.orthographyTitle : '—',
-            style: const TextStyle(fontSize: 9.5),
-          ),
-        ),
-        'days': _cell(
-          Text(toArabicDigits(row.teachingDays),
-              style: const TextStyle(fontSize: 9.5)),
-          center: true,
-        ),
-        'week': _cell(
-          Text(toArabicDigits(row.startWeek),
-              style: const TextStyle(fontSize: 9.5)),
-          center: true,
-        ),
-        'exam': _cell(
-          Text(row.examFocus, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'notes': _cell(
-          Text(row.notes, style: const TextStyle(fontSize: 9.5)),
-        ),
-      };
-      return Row(
-        children: visible
-            .map((c) => Expanded(flex: c.weight.toInt(), child: byId[c.id]!))
-            .toList(growable: false),
-      );
+  List<Widget> _dailyChildren({
+    required StudyPlans plans,
+    required Color teal,
+    required Color border,
+    required double bodySize,
+    required void Function(DailyPlanEntry entry) onEditDaily,
+  }) {
+    final visible = plans.settings.visibleDailyColumns;
+
+    if (plans.dailyEntries.isEmpty) {
+      return <Widget>[
+        _emptyHint('لا توجد أيام — اضغط «يوم» لإضافة يوم جديد', border),
+      ];
     }
 
-    return Column(
+    return <Widget>[
+      for (final entry in plans.dailyEntries)
+        _DailyTopicCard(
+          entry: entry,
+          visible: visible,
+          teal: teal,
+          border: border,
+          bodySize: bodySize,
+          onEdit: () => onEditDaily(entry),
+        ),
+    ];
+  }
+
+  Widget _sectionDivider(String label, Color teal) {
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: teal.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: teal.withValues(alpha: 0.35), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: teal,
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyHint(String text, Color border) {
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  /// A bordered labelled cell (label above value). The value wraps and is
+  /// never truncated, so all information stays readable.
+  Widget _labeledCell(
+    String label,
+    String value, {
+    required Color border,
+    required Color muted,
+    required double bodySize,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: bodySize * 0.8,
+              fontWeight: FontWeight.w600,
+              color: muted,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value.isEmpty ? '—' : value,
+            style: TextStyle(
+              fontSize: bodySize,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Renders [cells] in one row (one or two side-by-side labelled cells), or
+  /// as a single full-width cell when only one is visible.
+  Widget _fieldsRow(List<Widget> cells) {
+    if (cells.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (cells.length == 1) {
+      return cells.first;
+    }
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          children: visible
-              .map((c) =>
-                  Expanded(flex: c.weight.toInt(), child: headerCell(c.label)))
-              .toList(growable: false),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: plans.annualRows.length + 1,
-            itemBuilder: (BuildContext context, int index) {
-              if (index == plans.annualRows.length) {
-                return _cell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'المجموع: ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
-                      style: const TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.deepTeal,
-                      ),
-                    ),
-                  ),
-                  background: const Color(0xFFCCFBF1),
-                  center: true,
-                );
-              }
-              return dataRow(plans.annualRows[index]);
-            },
-          ),
-        ),
+        for (var i = 0; i < cells.length; i++) ...[
+          Expanded(child: cells[i]),
+          if (i != cells.length - 1) const SizedBox(width: AppSpacing.sm),
+        ],
       ],
     );
   }
 
-  Widget _dailyTable(Color teal) {
-    final visible = StudyPlanColumns.daily
-        .where((c) => plans.settings.visibleDailyColumns.contains(c.id))
-        .toList(growable: false);
+  Widget _indexBadge(String id, Color teal) {
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: teal.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Text(
+        toArabicDigits(id.split('-').last),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: teal,
+        ),
+      ),
+    );
+  }
 
-    Widget dataRow(DailyPlanEntry entry) {
-      final byId = <String, Widget>{
-        'day': _cell(
-          Text(entry.dayLabel, style: const TextStyle(fontSize: 9.5)),
+  Widget _chip(String label, String value, Color teal, Color border) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: 2),
+      margin: const EdgeInsets.only(right: AppSpacing.xs, bottom: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: teal.withValues(alpha: 0.08),
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: teal,
         ),
-        'date': _cell(
-          Text(entry.dateText.isEmpty ? '—' : entry.dateText,
-              style: const TextStyle(fontSize: 9.5)),
-          center: true,
-        ),
-        'focus': _cell(
-          Text(entry.focus, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'content': _cell(
-          Text(entry.content, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'homework': _cell(
-          Text(entry.homework.isEmpty ? '—' : entry.homework,
-              style: const TextStyle(fontSize: 9.5)),
-        ),
-        'notes': _cell(
-          Text(entry.notes, style: const TextStyle(fontSize: 9.5)),
-        ),
-        'done': _cell(
-          Text(entry.done ? '✓' : '—',
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700)),
-          center: true,
-        ),
-      };
-      return Row(
-        children: visible
-            .map((c) => Expanded(flex: c.weight.toInt(), child: byId[c.id]!))
-            .toList(growable: false),
-      );
-    }
+      ),
+    );
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Row(
-          children: visible
-              .map((c) => Expanded(
-                    flex: c.weight.toInt(),
-                    child: _cell(
-                      Text(
-                        c.label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                        ),
-                      ),
-                      background: teal,
-                      center: true,
-                    ),
-                  ))
-              .toList(growable: false),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: plans.dailyEntries.length,
-            itemBuilder: (BuildContext context, int index) =>
-                dataRow(plans.dailyEntries[index]),
+  Widget _doneBadge(bool done, Color teal) {
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: done ? teal : Colors.transparent,
+        border: Border.all(color: teal.withValues(alpha: 0.4), width: 0.5),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: done
+          ? const Text(
+              '✓',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
+  Widget _focusStrip(
+    String focus,
+    Color teal,
+    Color border,
+    Color muted,
+    double bodySize,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: teal.withValues(alpha: 0.08),
+        border: Border.all(color: teal.withValues(alpha: 0.35), width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      child: Row(
+        children: <Widget>[
+          Text(
+            'محور الدرس',
+            style: TextStyle(
+              fontSize: bodySize * 0.8,
+              fontWeight: FontWeight.w600,
+              color: muted,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              focus.isEmpty ? '—' : focus,
+              style: TextStyle(
+                fontSize: bodySize,
+                fontWeight: FontWeight.w700,
+                color: teal,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
+/// Read-only, print-like card for one annual unit inside the sheet: unit
+/// header with schedule chips, then labelled fields for every visible column.
+class _AnnualUnitCard extends StatelessWidget {
+  const _AnnualUnitCard({
+    required this.row,
+    required this.visible,
+    required this.teal,
+    required this.border,
+    required this.bodySize,
+    required this.onEdit,
+  });
+
+  final AnnualPlanRow row;
+  final Set<String> visible;
+  final Color teal;
+  final Color border;
+  final double bodySize;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink =
+        theme.brightness == Brightness.dark ? AppColors.nightInk : AppColors.ink;
+    final muted =
+        theme.brightness == Brightness.dark ? AppColors.nightMuted : AppColors.inkMuted;
+    final unitLabel = row.unitLabel.isEmpty ? 'الوحدة' : row.unitLabel;
+    final hasSchedule =
+        visible.contains('pages') ||
+        visible.contains('week') ||
+        visible.contains('days');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              if (visible.contains('index')) ...[
+                _indexBadge(row.id, teal),
+                const SizedBox(width: AppSpacing.sm),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      unitLabel,
+                      style: TextStyle(
+                        fontSize: bodySize * 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
+                    ),
+                    if (row.unitTitle.isNotEmpty)
+                      Text(
+                        row.unitTitle,
+                        style: TextStyle(
+                          fontSize: bodySize * 0.85,
+                          color: muted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'تعديل',
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                onPressed: onEdit,
+              ),
+            ],
+          ),
+          if (hasSchedule) ...[
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: <Widget>[
+                if (visible.contains('pages'))
+                  _chip('الصفحات', row.pages, teal, border),
+                if (visible.contains('week'))
+                  _chip('الأسبوع', toArabicDigits(row.startWeek), teal, border),
+                if (visible.contains('days'))
+                  _chip('أيام التدريس', toArabicDigits(row.teachingDays), teal, border),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          _fieldsRow(<Widget>[
+            if (visible.contains('reading'))
+              _labeledCell(
+                'المطالعة',
+                row.readingTitle,
+                border: border,
+                muted: muted,
+                bodySize: bodySize,
+              ),
+            if (visible.contains('grammar'))
+              _labeledCell(
+                'القواعد',
+                row.grammarTitle,
+                border: border,
+                muted: muted,
+                bodySize: bodySize,
+              ),
+          ]),
+          _fieldsRow(<Widget>[
+            if (visible.contains('orthography'))
+              _labeledCell(
+                'الإملاء والتعبير',
+                row.orthographyTitle,
+                border: border,
+                muted: muted,
+                bodySize: bodySize,
+              ),
+            if (visible.contains('exam'))
+              _labeledCell(
+                'محور التقويم',
+                row.examFocus,
+                border: border,
+                muted: muted,
+                bodySize: bodySize,
+              ),
+          ]),
+          if (visible.contains('notes'))
+            _labeledCell(
+              'ملاحظات',
+              row.notes,
+              border: border,
+              muted: muted,
+              bodySize: bodySize,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Read-only, print-like card for one daily topic inside the sheet. The lesson
+/// content is shown in full (it wraps and is never truncated), so every topic
+/// is complete inside the A4 display.
+class _DailyTopicCard extends StatelessWidget {
+  const _DailyTopicCard({
+    required this.entry,
+    required this.visible,
+    required this.teal,
+    required this.border,
+    required this.bodySize,
+    required this.onEdit,
+  });
+
+  final DailyPlanEntry entry;
+  final Set<String> visible;
+  final Color teal;
+  final Color border;
+  final double bodySize;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ink =
+        theme.brightness == Brightness.dark ? AppColors.nightInk : AppColors.ink;
+    final muted =
+        theme.brightness == Brightness.dark ? AppColors.nightMuted : AppColors.inkMuted;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      entry.dayLabel.isEmpty ? 'اليوم' : entry.dayLabel,
+                      style: TextStyle(
+                        fontSize: bodySize * 1.2,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
+                    ),
+                    if (visible.contains('date') && entry.dateText.isNotEmpty)
+                      Text(
+                        entry.dateText,
+                        style: TextStyle(
+                          fontSize: bodySize * 0.85,
+                          color: muted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (visible.contains('done')) _doneBadge(entry.done, teal),
+              IconButton(
+                tooltip: 'تعديل',
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                onPressed: onEdit,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _focusStrip(entry.focus, teal, border, muted, bodySize),
+          // The lesson content is shown in full — it wraps, never truncates.
+          _labeledCell(
+            'محتوى الدرس',
+            entry.content,
+            border: border,
+            muted: muted,
+            bodySize: bodySize,
+          ),
+          if (visible.contains('homework'))
+            _labeledCell(
+              'الواجب',
+              entry.homework,
+              border: border,
+              muted: muted,
+              bodySize: bodySize,
+            ),
+          if (visible.contains('notes'))
+            _labeledCell(
+              'ملاحظات',
+              entry.notes,
+              border: border,
+              muted: muted,
+              bodySize: bodySize,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Modal popup wrapper for the row/entry editor forms. Editing happens in a
+/// bottom sheet, so the plan sheet stays the single full-width display.
+class _EditorSheet extends StatelessWidget {
+  const _EditorSheet({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final paper = isDark ? AppColors.nightElevated : AppColors.paperElevated;
+    final border = isDark ? AppColors.nightBorder : AppColors.border;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: paper,
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.lg),
+        ),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: border, width: 0.5)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('إغلاق'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: child,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // ---- Print options -------------------------------------------------------
 
 class _PrintOptions extends StatelessWidget {
@@ -764,67 +1259,7 @@ class _FontSizeSlider extends StatelessWidget {
   }
 }
 
-// ---- Annual editor -------------------------------------------------------
-
-class _AnnualEditor extends StatelessWidget {
-  const _AnnualEditor({
-    required this.plans,
-    required this.onChange,
-    required this.onAdd,
-    required this.onDelete,
-    required this.onReset,
-  });
-
-  final StudyPlans plans;
-  final ValueChanged<AnnualPlanRow> onChange;
-  final ValueChanged<String> onDelete;
-  final VoidCallback onAdd;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SectionHeader(
-          title: 'الخطة السنوية',
-          subtitle:
-              '${plans.annualRows.length} وحدة — ${toArabicDigits(plans.totalTeachingDays)} يوماً دراسياً',
-          trailing: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: AppSpacing.xs,
-            children: <Widget>[
-              IconButton.outlined(
-                tooltip: 'إعادة الضبط',
-                icon: const Icon(Icons.refresh),
-                onPressed: onReset,
-              ),
-              FilledButton.tonalIcon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add),
-                label: const Text('سطر'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-            itemCount: plans.annualRows.length,
-            itemBuilder: (BuildContext context, int index) {
-              final row = plans.annualRows[index];
-              return _AnnualRowCard(
-                row: row,
-                onChange: onChange,
-                onDelete: () => onDelete(row.id),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
+// ---- Annual row editor form (opened as a modal popup) -------------------
 
 class _AnnualRowCard extends StatefulWidget {
   const _AnnualRowCard({
@@ -1050,66 +1485,7 @@ class _AnnualRowCardState extends State<_AnnualRowCard> {
   }
 }
 
-// ---- Daily editor --------------------------------------------------------
-
-class _DailyEditor extends StatelessWidget {
-  const _DailyEditor({
-    required this.plans,
-    required this.onChange,
-    required this.onAdd,
-    required this.onDelete,
-    required this.onReset,
-  });
-
-  final StudyPlans plans;
-  final ValueChanged<DailyPlanEntry> onChange;
-  final ValueChanged<String> onDelete;
-  final VoidCallback onAdd;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SectionHeader(
-          title: 'الخطة اليومية',
-          subtitle: '${plans.dailyEntries.length} يوماً مجدولاً',
-          trailing: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: AppSpacing.xs,
-            children: <Widget>[
-              IconButton.outlined(
-                tooltip: 'إعادة الضبط',
-                icon: const Icon(Icons.refresh),
-                onPressed: onReset,
-              ),
-              FilledButton.tonalIcon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add),
-                label: const Text('يوم'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-            itemCount: plans.dailyEntries.length,
-            itemBuilder: (BuildContext context, int index) {
-              final entry = plans.dailyEntries[index];
-              return _DailyEntryCard(
-                entry: entry,
-                onChange: onChange,
-                onDelete: () => onDelete(entry.id),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
+// ---- Daily entry editor form (opened as a modal popup) ------------------
 
 class _DailyEntryCard extends StatefulWidget {
   const _DailyEntryCard({
