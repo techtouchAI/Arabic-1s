@@ -627,23 +627,23 @@ class _PlanSheet extends StatelessWidget {
   }
 }
 
-/// A bordered labelled cell (label above value). The value wraps and is
-/// never truncated, so all information stays readable.
-Widget _labeledCell(
-  String label,
-  String value, {
-  required Color border,
-  required Color muted,
-  required double bodySize,
-}) {
-  return Container(
-    padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
-    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-    decoration: BoxDecoration(
-      border: Border.all(color: border, width: 0.5),
-      borderRadius: BorderRadius.circular(AppRadii.sm),
-    ),
+  /// A bordered labelled cell (label above value). The value wraps and is
+  /// never truncated, so all information stays readable. The cell has no
+  /// margin so it can be placed inside a flex row safely; callers add spacing.
+  Widget _labeledCell(
+    String label,
+    String value, {
+    required Color border,
+    required Color muted,
+    required double bodySize,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        border: Border.all(color: border, width: 0.5),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -668,8 +668,8 @@ Widget _labeledCell(
   );
 }
 
-/// Renders [cells] in one row (one or two side-by-side labelled cells), or
-/// as a single full-width cell when only one is visible.
+/// Stacks [cells] as full-width labelled cells with even spacing. A plain
+/// column keeps every cell readable at any width without flex constraints.
 Widget _fieldsRow(List<Widget> cells) {
   if (cells.isEmpty) {
     return const SizedBox.shrink();
@@ -677,12 +677,12 @@ Widget _fieldsRow(List<Widget> cells) {
   if (cells.length == 1) {
     return cells.first;
   }
-  return Row(
+  return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: <Widget>[
       for (var i = 0; i < cells.length; i++) ...[
-        Expanded(child: cells[i]),
-        if (i != cells.length - 1) const SizedBox(width: AppSpacing.sm),
+        cells[i],
+        if (i != cells.length - 1) const SizedBox(height: AppSpacing.sm),
       ],
     ],
   );
@@ -905,6 +905,7 @@ class _AnnualUnitCard extends StatelessWidget {
                 bodySize: bodySize,
               ),
           ]),
+          const SizedBox(height: AppSpacing.sm),
           _fieldsRow(<Widget>[
             if (visible.contains('orthography'))
               _labeledCell(
@@ -923,6 +924,7 @@ class _AnnualUnitCard extends StatelessWidget {
                 bodySize: bodySize,
               ),
           ]),
+          const SizedBox(height: AppSpacing.sm),
           if (visible.contains('notes'))
             _labeledCell(
               'ملاحظات',
@@ -1018,6 +1020,7 @@ class _DailyTopicCard extends StatelessWidget {
             muted: muted,
             bodySize: bodySize,
           ),
+          const SizedBox(height: AppSpacing.sm),
           if (visible.contains('homework'))
             _labeledCell(
               'الواجب',
@@ -1026,6 +1029,7 @@ class _DailyTopicCard extends StatelessWidget {
               muted: muted,
               bodySize: bodySize,
             ),
+          const SizedBox(height: AppSpacing.sm),
           if (visible.contains('notes'))
             _labeledCell(
               'ملاحظات',
