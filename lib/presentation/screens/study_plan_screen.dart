@@ -258,7 +258,9 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
             DefaultTabController(
               length: 2,
               child: TabBar(
-                isScrollable: true,
+                // Not scrollable: both plan tabs always stay visible and
+                // tappable on narrow phones instead of scrolling off-screen.
+                isScrollable: false,
                 onTap: (int index) => setState(() =>
                     _mode =
                         index == 0 ? StudyPlanMode.daily : StudyPlanMode.annual),

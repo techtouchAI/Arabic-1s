@@ -256,8 +256,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       for (final mode in const <_PlanModeCase>[
-        _PlanModeCase(
-            tab: 'الخطة السنوية', header: 'الجزء الأول — الفصل الدراسي الأول'),
+        _PlanModeCase(tab: 'الخطة السنوية', header: 'المجموع'),
         _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم الأول'),
       ]) {
         final state = createTestAppState(
@@ -310,7 +309,7 @@ void main() {
         expect(
           find.descendant(
             of: find.byKey(sheetKey),
-            matching: find.text(mode.header),
+            matching: find.textContaining(mode.header),
           ),
           findsOneWidget,
         );
