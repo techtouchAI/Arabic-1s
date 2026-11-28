@@ -36,7 +36,6 @@ class StudyPlanScreen extends StatefulWidget {
 class _StudyPlanScreenState extends State<StudyPlanScreen> {
   StudyPlanMode _mode = StudyPlanMode.annual;
   bool _printing = false;
-  bool _optionsExpanded = false;
   bool _initRequested = false;
 
   @override
@@ -86,6 +85,27 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
         setState(() => _printing = false);
       }
     }
+  }
+
+  /// Opens the sheet-options panel as a modal bottom sheet. The panel overlays
+  /// the preview/editor instead of taking a slice of the page layout, so the
+  /// plan content is never compressed or pushed down when the options open.
+  Future<void> _openPrintOptions() async {
+    final state = AppScope.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext context) => ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 480),
+        child: _PrintOptions(
+          mode: _mode,
+          onChanged: state.updatePlanSettings,
+          onToggleAnnual: state.toggleAnnualColumn,
+          onToggleDaily: state.toggleDailyColumn,
+        ),
+      ),
+    );
   }
 
   Future<void> _reset() async {
@@ -165,7 +185,7 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
           IconButton(
             tooltip: 'خيارات الطباعة',
             icon: const Icon(Icons.tune),
-            onPressed: () => setState(() => _optionsExpanded = !_optionsExpanded),
+            onPressed: _openPrintOptions,
           ),
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -199,20 +219,6 @@ class _StudyPlanScreenState extends State<StudyPlanScreen> {
                   Tab(text: 'الخطة السنوية'),
                 ],
               ),
-            ),
-            Expanded(
-              child: _optionsExpanded
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                          0, AppSpacing.md, 0, 0),
-                      child: _PrintOptions(
-                        mode: _mode,
-                        onChanged: state.updatePlanSettings,
-                        onToggleAnnual: state.toggleAnnualColumn,
-                        onToggleDaily: state.toggleDailyColumn,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
             ),
             Expanded(
               child: Row(

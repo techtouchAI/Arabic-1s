@@ -324,16 +324,19 @@ void main() {
     // Panel closed initially.
     expect(find.text('خيارات ال sheet'), findsNothing);
 
-    // Open the panel — it must not overflow into the preview/editor.
+    // Open the panel as a modal popup — it overlays, it must not overflow and
+    // must not split/compress the plan content behind it.
     await tester.tap(find.byTooltip('خيارات الطباعة'));
     await _settle(tester);
     expect(find.text('خيارات ال sheet'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<QuestionPrintFont>), findsOneWidget);
+    // The plan content stays in place (page is not split or pushed down).
+    expect(find.byKey(const ValueKey<String>('a4-sheet')), findsOneWidget);
     // Long font names stay inside the (expanded) field — no horizontal overflow.
     await _settle(tester);
 
-    // Close again — layout must restore cleanly.
-    await tester.tap(find.byTooltip('خيارات الطباعة'));
+    // Dismiss the popup by tapping the scrim above the sheet.
+    await tester.tapAt(const Offset(10, 10));
     await _settle(tester);
     expect(find.text('خيارات ال sheet'), findsNothing);
     await _settle(tester);
