@@ -625,6 +625,7 @@ class _PlanSheet extends StatelessWidget {
       ),
     );
   }
+}
 
 /// A bordered labelled cell (label above value). The value wraps and is
 /// never truncated, so all information stays readable.
@@ -791,7 +792,6 @@ Widget _focusStrip(
       ],
     ),
   );
-}
 }
 
 /// Read-only, print-like card for one annual unit inside the sheet: unit
