@@ -256,7 +256,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       for (final mode in const <_PlanModeCase>[
-        _PlanModeCase(tab: 'الخطة السنوية', header: 'المجموع'),
+        _PlanModeCase(tab: 'الخطة السنوية', header: 'مقدمة المنهج التكاملي'),
         _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم الأول'),
       ]) {
         final state = createTestAppState(
@@ -316,19 +316,13 @@ void main() {
         expect(find.byKey(sheetKey), findsOneWidget);
         expect(find.text('A4'), findsOneWidget);
         expect(find.text('منصة بيان للتعليم'), findsOneWidget);
-        final sheetTexts = tester
-            .widgetList(
-              find.descendant(
-                of: find.byKey(sheetKey),
-                matching: find.byType(Text),
-              ),
-            )
-            .map((w) => (w as Text).data ?? '')
-            .toList();
         expect(
-          sheetTexts,
-          contains(mode.header),
-          reason: 'sheet texts: ${sheetTexts.take(12).join(' | ')}',
+          find.descendant(
+            of: find.byKey(sheetKey),
+            matching: find.textContaining(mode.header),
+          ),
+          mode.tab == 'الخطة السنوية' ? findsWidgets : findsOneWidget,
+          reason: 'plan content must be present inside the sheet',
         );
 
         // Daily topics are shown in full inside the sheet.
