@@ -271,6 +271,16 @@ void main() {
         state.setNavIndex(5); // StudyPlanScreen
         await _settle(tester);
 
+        // Wait for the async plan load (SharedPreferences) to finish before
+        // asserting on the sheet's plan content.
+        for (var i = 0;
+            i < 20 &&
+                state.studyPlans.plans.annualRows.isEmpty &&
+                state.studyPlans.plans.dailyEntries.isEmpty;
+            i++) {
+          await tester.pump();
+        }
+
         // Switch to the requested plan via its TabBar tab.
         await tester.tap(find.text(mode.tab).first, warnIfMissed: false);
         await _settle(tester);
@@ -350,6 +360,15 @@ void main() {
     await _settle(tester);
     state.setNavIndex(5); // StudyPlanScreen
     await _settle(tester);
+
+    // Wait for the async plan load to finish before interacting.
+    for (var i = 0;
+        i < 20 &&
+            state.studyPlans.plans.annualRows.isEmpty &&
+            state.studyPlans.plans.dailyEntries.isEmpty;
+        i++) {
+      await tester.pump();
+    }
 
     // Daily topic: open the first card's editor popup.
     final tabBar = find.byType(TabBar);
