@@ -626,172 +626,172 @@ class _PlanSheet extends StatelessWidget {
     );
   }
 
-  /// A bordered labelled cell (label above value). The value wraps and is
-  /// never truncated, so all information stays readable.
-  Widget _labeledCell(
-    String label,
-    String value, {
-    required Color border,
-    required Color muted,
-    required double bodySize,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
-        border: Border.all(color: border, width: 0.5),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: bodySize * 0.8,
-              fontWeight: FontWeight.w600,
-              color: muted,
-            ),
+/// A bordered labelled cell (label above value). The value wraps and is
+/// never truncated, so all information stays readable.
+Widget _labeledCell(
+  String label,
+  String value, {
+  required Color border,
+  required Color muted,
+  required double bodySize,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+    decoration: BoxDecoration(
+      border: Border.all(color: border, width: 0.5),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: bodySize * 0.8,
+            fontWeight: FontWeight.w600,
+            color: muted,
           ),
-          const SizedBox(height: 3),
-          Text(
-            value.isEmpty ? '—' : value,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value.isEmpty ? '—' : value,
+          style: TextStyle(
+            fontSize: bodySize,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Renders [cells] in one row (one or two side-by-side labelled cells), or
+/// as a single full-width cell when only one is visible.
+Widget _fieldsRow(List<Widget> cells) {
+  if (cells.isEmpty) {
+    return const SizedBox.shrink();
+  }
+  if (cells.length == 1) {
+    return cells.first;
+  }
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      for (var i = 0; i < cells.length; i++) ...[
+        Expanded(child: cells[i]),
+        if (i != cells.length - 1) const SizedBox(width: AppSpacing.sm),
+      ],
+    ],
+  );
+}
+
+Widget _indexBadge(String id, Color teal) {
+  return Container(
+    width: 26,
+    height: 26,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: teal.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+    ),
+    child: Text(
+      toArabicDigits(id.split('-').last),
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: teal,
+      ),
+    ),
+  );
+}
+
+Widget _chip(String label, String value, Color teal, Color border) {
+  return Container(
+    padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm, vertical: 2),
+    margin: const EdgeInsets.only(right: AppSpacing.xs, bottom: AppSpacing.xs),
+    decoration: BoxDecoration(
+      color: teal.withValues(alpha: 0.08),
+      border: Border.all(color: border, width: 0.5),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+    ),
+    child: Text(
+      '$label: $value',
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: teal,
+      ),
+    ),
+  );
+}
+
+Widget _doneBadge(bool done, Color teal) {
+  return Container(
+    width: 22,
+    height: 22,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: done ? teal : Colors.transparent,
+      border: Border.all(color: teal.withValues(alpha: 0.4), width: 0.5),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: done
+        ? const Text(
+            '✓',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          )
+        : const SizedBox.shrink(),
+  );
+}
+
+Widget _focusStrip(
+  String focus,
+  Color teal,
+  Color border,
+  Color muted,
+  double bodySize,
+) {
+  return Container(
+    padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+    decoration: BoxDecoration(
+      color: teal.withValues(alpha: 0.08),
+      border: Border.all(color: teal.withValues(alpha: 0.35), width: 0.5),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+    ),
+    child: Row(
+      children: <Widget>[
+        Text(
+          'محور الدرس',
+          style: TextStyle(
+            fontSize: bodySize * 0.8,
+            fontWeight: FontWeight.w600,
+            color: muted,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            focus.isEmpty ? '—' : focus,
             style: TextStyle(
               fontSize: bodySize,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w700,
+              color: teal,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  /// Renders [cells] in one row (one or two side-by-side labelled cells), or
-  /// as a single full-width cell when only one is visible.
-  Widget _fieldsRow(List<Widget> cells) {
-    if (cells.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    if (cells.length == 1) {
-      return cells.first;
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        for (var i = 0; i < cells.length; i++) ...[
-          Expanded(child: cells[i]),
-          if (i != cells.length - 1) const SizedBox(width: AppSpacing.sm),
-        ],
+        ),
       ],
-    );
-  }
-
-  Widget _indexBadge(String id, Color teal) {
-    return Container(
-      width: 26,
-      height: 26,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: teal.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-      ),
-      child: Text(
-        toArabicDigits(id.split('-').last),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: teal,
-        ),
-      ),
-    );
-  }
-
-  Widget _chip(String label, String value, Color teal, Color border) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: 2),
-      margin: const EdgeInsets.only(right: AppSpacing.xs, bottom: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: teal.withValues(alpha: 0.08),
-        border: Border.all(color: border, width: 0.5),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-      ),
-      child: Text(
-        '$label: $value',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: teal,
-        ),
-      ),
-    );
-  }
-
-  Widget _doneBadge(bool done, Color teal) {
-    return Container(
-      width: 22,
-      height: 22,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: done ? teal : Colors.transparent,
-        border: Border.all(color: teal.withValues(alpha: 0.4), width: 0.5),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: done
-          ? const Text(
-              '✓',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            )
-          : const SizedBox.shrink(),
-    );
-  }
-
-  Widget _focusStrip(
-    String focus,
-    Color teal,
-    Color border,
-    Color muted,
-    double bodySize,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: teal.withValues(alpha: 0.08),
-        border: Border.all(color: teal.withValues(alpha: 0.35), width: 0.5),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-      ),
-      child: Row(
-        children: <Widget>[
-          Text(
-            'محور الدرس',
-            style: TextStyle(
-              fontSize: bodySize * 0.8,
-              fontWeight: FontWeight.w600,
-              color: muted,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              focus.isEmpty ? '—' : focus,
-              style: TextStyle(
-                fontSize: bodySize,
-                fontWeight: FontWeight.w700,
-                color: teal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  );
+}
 }
 
 /// Read-only, print-like card for one annual unit inside the sheet: unit
