@@ -275,7 +275,7 @@ void main() {
         await tester.tap(find.text(mode.tab).first, warnIfMissed: false);
         await _settle(tester);
 
-        final sheetKey = const ValueKey<String>('a4-sheet');
+        const sheetKey = ValueKey<String>('a4-sheet');
         final sheetBox =
             tester.renderObject(find.byKey(sheetKey)) as RenderBox;
 
