@@ -2,6 +2,7 @@ import 'package:bayan/app.dart';
 import 'package:bayan/data/local/exam_document_exporter.dart';
 import 'package:bayan/domain/models/library.dart';
 import 'package:bayan/domain/models/exam_paper.dart';
+import 'package:bayan/domain/models/question_print_settings.dart';
 import 'package:bayan/presentation/screens/exam_composer_screen.dart';
 import 'package:bayan/presentation/screens/glossary_screen.dart';
 import 'package:bayan/presentation/screens/lesson_screen.dart';
@@ -77,8 +78,8 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
       }
 
-      // Cycle through all 5 main destinations
-      for (var navIdx = 0; navIdx < 5; navIdx++) {
+      // Cycle through all 6 main destinations
+      for (var navIdx = 0; navIdx < 6; navIdx++) {
         state.setNavIndex(navIdx);
         await _settle(tester);
       }
@@ -241,4 +242,213 @@ void main() {
     expect(identical(saved.paper, exportedPaper), isTrue);
     expect(saved.revision, greaterThan(1));
   });
+
+  testWidgets('study plan shows a full-width A4 sheet with complete topics, no overflow', (
+    WidgetTester tester,
+  ) async {
+    for (final viewport in <Size>[
+      const Size(390, 844), // narrow phone
+      const Size(412, 915), // normal phone
+      const Size(1280, 800), // wide desktop
+    ]) {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      for (final mode in const <_PlanModeCase>[
+        _PlanModeCase(tab: 'الخطة السنوية', header: 'مقدمة المنهج التكاملي'),
+        _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم الأول'),
+      ]) {
+        final state = createTestAppState(
+          selectedPart: CurriculumPart.part1,
+          onboardingCompleted: true,
+          textScale: 1.15,
+        );
+
+        await tester.pumpWidget(BayanApp(state: state));
+        await _settle(tester);
+
+        state.setNavIndex(5); // StudyPlanScreen
+        await _settle(tester);
+
+        // Wait for the async plan load (SharedPreferences) to finish before
+        // asserting on the sheet's plan content.
+        for (var i = 0;
+            i < 20 &&
+                state.studyPlans.plans.annualRows.isEmpty &&
+                state.studyPlans.plans.dailyEntries.isEmpty;
+            i++) {
+          await tester.pump();
+        }
+
+        // Switch to the requested plan via its TabBar tab.
+        await tester.tap(find.text(mode.tab).first, warnIfMissed: false);
+        await _settle(tester);
+
+        const sheetKey = ValueKey<String>('a4-sheet');
+        final sheetBox =
+            tester.renderObject(find.byKey(sheetKey)) as RenderBox;
+
+        // The sheet must keep the exact A4 aspect ratio (210:297).
+        final ratio = sheetBox.size.width / sheetBox.size.height;
+        expect(
+          (ratio - 210 / 297).abs(),
+          lessThan(0.01),
+          reason: 'A4 preview aspect ratio must be 210:297',
+        );
+
+        // The sheet fills the available width — no minimum-width clamp, so
+        // there is no horizontal scrolling and no crushed/hidden content.
+        expect(
+          sheetBox.size.width,
+          lessThanOrEqualTo(viewport.width),
+          reason: 'sheet must not be wider than the viewport',
+        );
+        if (viewport.width < 640) {
+          expect(
+            sheetBox.size.width,
+            lessThan(640),
+            reason: 'sheet must not be clamped to a min width on phones',
+          );
+        }
+
+        // Sheet content is present and the page is not split into two panes.
+        expect(find.byKey(sheetKey), findsOneWidget);
+        expect(find.text('A4'), findsOneWidget);
+        expect(find.text('منصة بيان للتعليم'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(sheetKey),
+            matching: find.textContaining(mode.header),
+          ),
+          mode.tab == 'الخطة السنوية' ? findsWidgets : findsOneWidget,
+          reason: 'plan content must be present inside the sheet',
+        );
+
+        // Daily topics are shown in full inside the sheet.
+        if (mode.tab == 'الخطة اليومية') {
+          final firstContent = state.studyPlans.plans.dailyEntries.first.content;
+          expect(
+            find.descendant(
+              of: find.byKey(sheetKey),
+              matching: find.text(firstContent),
+            ),
+            findsOneWidget,
+            reason: 'the daily topic content must be shown in full',
+          );
+        }
+
+        // Any RenderFlex/BoxConstraints overflow throws during pump.
+        await _settle(tester);
+      }
+    }
+  });
+
+  testWidgets('study plan topic card opens the editor as a popup, dismiss restores', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final state = createTestAppState(
+      selectedPart: CurriculumPart.part1,
+      onboardingCompleted: true,
+      textScale: 1.15,
+    );
+
+    await tester.pumpWidget(BayanApp(state: state));
+    await _settle(tester);
+    state.setNavIndex(5); // StudyPlanScreen
+    await _settle(tester);
+
+    // Wait for the async plan load to finish before interacting.
+    for (var i = 0;
+        i < 20 &&
+            state.studyPlans.plans.annualRows.isEmpty &&
+            state.studyPlans.plans.dailyEntries.isEmpty;
+        i++) {
+      await tester.pump();
+    }
+
+    // Daily topic: open the first card's editor popup.
+    final tabBar = find.byType(TabBar);
+    await tester.tap(
+      find.descendant(of: tabBar, matching: find.text('الخطة اليومية')),
+    );
+    await _settle(tester);
+    await tester.ensureVisible(find.byTooltip('تعديل').first);
+    await tester.tap(find.byTooltip('تعديل').first);
+    await _settle(tester);
+    expect(find.text('تحرير اليوم'), findsOneWidget);
+    // The plan sheet stays in place while the editor overlays it.
+    expect(find.byKey(const ValueKey<String>('a4-sheet')), findsOneWidget);
+
+    // Dismiss the popup via the scrim — layout restores cleanly.
+    await tester.tapAt(const Offset(10, 10));
+    await _settle(tester);
+    expect(find.text('تحرير اليوم'), findsNothing);
+
+    // Annual unit: open its editor popup as well.
+    await tester.tap(
+      find.descendant(of: tabBar, matching: find.text('الخطة السنوية')),
+    );
+    await _settle(tester);
+    await tester.ensureVisible(find.byTooltip('تعديل').first);
+    await tester.tap(find.byTooltip('تعديل').first);
+    await _settle(tester);
+    expect(find.text('تحرير الوحدة'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('a4-sheet')), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 10));
+    await _settle(tester);
+    expect(find.text('تحرير الوحدة'), findsNothing);
+    await _settle(tester);
+  });
+
+  testWidgets('study plan print-options panel opens/closes without overlap or overflow', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final state = createTestAppState(
+      selectedPart: CurriculumPart.part1,
+      onboardingCompleted: true,
+      textScale: 1.15,
+    );
+
+    await tester.pumpWidget(BayanApp(state: state));
+    await _settle(tester);
+    state.setNavIndex(5); // StudyPlanScreen
+    await _settle(tester);
+
+    // Panel closed initially.
+    expect(find.text('خيارات ال sheet'), findsNothing);
+
+    // Open the panel as a modal popup — it overlays, it must not overflow and
+    // must not split/compress the plan content behind it.
+    await tester.tap(find.byTooltip('خيارات الطباعة'));
+    await _settle(tester);
+    expect(find.text('خيارات ال sheet'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<QuestionPrintFont>), findsOneWidget);
+    // The plan content stays in place (page is not split or pushed down).
+    expect(find.byKey(const ValueKey<String>('a4-sheet')), findsOneWidget);
+    // Long font names stay inside the (expanded) field — no horizontal overflow.
+    await _settle(tester);
+
+    // Dismiss the popup by tapping the scrim above the sheet.
+    await tester.tapAt(const Offset(10, 10));
+    await _settle(tester);
+    expect(find.text('خيارات ال sheet'), findsNothing);
+    await _settle(tester);
+  });
+}
+
+class _PlanModeCase {
+  const _PlanModeCase({required this.tab, required this.header});
+
+  final String tab;
+  final String header;
 }

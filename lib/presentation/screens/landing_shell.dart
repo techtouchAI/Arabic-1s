@@ -9,6 +9,7 @@ import 'index_screen.dart';
 import 'quiz_screen.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
+import 'study_plan_screen.dart';
 
 class LandingShell extends StatelessWidget {
   const LandingShell({super.key});
@@ -39,6 +40,11 @@ class LandingShell extends StatelessWidget {
       icon: Icons.quiz_outlined,
       selectedIcon: Icons.quiz,
     ),
+    _DestinationSpec(
+      label: 'الخطط',
+      icon: Icons.calendar_month_outlined,
+      selectedIcon: Icons.calendar_month,
+    ),
   ];
 
   @override
@@ -54,6 +60,7 @@ class LandingShell extends StatelessWidget {
       SearchScreen(),
       BookmarksScreen(),
       QuizScreen(),
+      StudyPlanScreen(),
     ];
 
     if (useRail) {

@@ -7,7 +7,9 @@ import '../../data/local/saved_exam_store.dart';
 import '../../domain/models/exam_paper.dart';
 import '../../domain/models/library.dart';
 import '../../domain/models/progress.dart';
+import '../../domain/models/study_plan.dart';
 import '../../domain/services/search_engine.dart';
+import '../../domain/services/study_plan_service.dart';
 import 'saved_exam_library.dart';
 
 class AppState extends ChangeNotifier {
@@ -17,8 +19,11 @@ class AppState extends ChangeNotifier {
     required ProgressStore store,
     StudyProgress? initialProgress,
     SavedExamLibrary? savedExams,
+    StudyPlanRepository? planRepository,
   })  : _store = store,
         _progress = initialProgress ?? store.read(),
+        _planRepository =
+            planRepository ?? MemoryStudyPlanRepository(),
         searchEngine = CurriculumSearchEngine(library),
         savedExams = savedExams ?? SavedExamLibrary(MemorySavedExamStore());
 
@@ -29,6 +34,7 @@ class AppState extends ChangeNotifier {
   final SavedExamLibrary savedExams;
   final CurriculumSearchEngine searchEngine;
   final ProgressStore _store;
+  final StudyPlanRepository _planRepository;
 
   StudyProgress _progress;
   int _selectedNavIndex = 0;
@@ -196,6 +202,85 @@ class AppState extends ChangeNotifier {
     _progress = next;
     notifyListeners();
     unawaited(_store.write(_progress));
+  }
+
+  // ---- Study plans (الخطة اليومية والخطة السنوية) ------------------------
+
+  /// Lazy service for the daily and annual plan sheets. Built on first use
+  /// so the state object stays cheap for screens that never touch plans.
+  StudyPlanService get studyPlans =>
+      _planService ??= StudyPlanService(
+        library: library,
+        repository: _planRepository,
+      );
+
+  StudyPlanService? _planService;
+
+  /// Loads the persisted plans, regenerating defaults on first run or when
+  /// the stored document is unreadable.
+  Future<StudyPlanService> initStudyPlans() async {
+    final service = studyPlans;
+    await service.load();
+    notifyListeners();
+    return service;
+  }
+
+  /// Resets the plan content back to the generated defaults.
+  Future<void> resetStudyPlans() async {
+    await studyPlans.resetToDefaults();
+    notifyListeners();
+  }
+
+  /// Regenerates the plan set, resetting daily entries to the standard
+  /// sequence for [mode].
+  void regeneratePlans(StudyPlanMode mode) {
+    studyPlans.regenerateFor(mode);
+    notifyListeners();
+  }
+
+  void updateAnnualRow(AnnualPlanRow row) {
+    studyPlans.updateAnnualRow(row);
+    notifyListeners();
+  }
+
+  void appendAnnualRow(AnnualPlanRow row) {
+    studyPlans.appendAnnualRow(row);
+    notifyListeners();
+  }
+
+  void removeAnnualRow(String id) {
+    studyPlans.removeAnnualRow(id);
+    notifyListeners();
+  }
+
+  void updateDailyEntry(DailyPlanEntry entry) {
+    studyPlans.updateDailyEntry(entry);
+    notifyListeners();
+  }
+
+  void appendDailyEntry(DailyPlanEntry entry) {
+    studyPlans.appendDailyEntry(entry);
+    notifyListeners();
+  }
+
+  void removeDailyEntry(String id) {
+    studyPlans.removeDailyEntry(id);
+    notifyListeners();
+  }
+
+  void updatePlanSettings(StudyPlanSettings settings) {
+    studyPlans.updateSettings(settings);
+    notifyListeners();
+  }
+
+  void toggleAnnualColumn(String columnId, bool visible) {
+    studyPlans.setAnnualColumnVisible(columnId, visible);
+    notifyListeners();
+  }
+
+  void toggleDailyColumn(String columnId, bool visible) {
+    studyPlans.setDailyColumnVisible(columnId, visible);
+    notifyListeners();
   }
 }
 

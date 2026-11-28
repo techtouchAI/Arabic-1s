@@ -13,6 +13,7 @@ import 'exam_composer_screen.dart';
 import 'glossary_screen.dart';
 import 'lesson_screen.dart';
 import 'question_print_screen.dart';
+import 'study_plan_screen.dart';
 import 'saved_exams_screen.dart';
 import 'settings_screen.dart';
 import 'unit_screen.dart';
@@ -125,6 +126,19 @@ class HomeScreen extends StatelessWidget {
                         );
                       },
                     );
+                    final planCard = _ToolActionCard(
+                      cardKey: const ValueKey<String>('open-study-plan'),
+                      icon: Icons.calendar_month_outlined,
+                      title: 'الخطة اليومية والسنوية',
+                      subtitle:
+                          'جدول تدريس يومي وسنوي رسمي، قابل للتعديل والطباعة على ورق A4 بتصميم مهني',
+                      accent: scheme.tertiary,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StudyPlanScreen(),
+                        ),
+                      ),
+                    );
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
@@ -142,6 +156,8 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(height: AppSpacing.sm),
                           printCard,
                         ],
+                        SizedBox(height: wide ? AppSpacing.md : AppSpacing.sm),
+                        planCard,
                         SizedBox(height: wide ? AppSpacing.md : AppSpacing.sm),
                         savedCard,
                       ],
