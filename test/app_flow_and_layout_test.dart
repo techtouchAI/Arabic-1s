@@ -256,7 +256,8 @@ void main() {
       addTearDown(tester.view.reset);
 
       for (final mode in const <_PlanModeCase>[
-        _PlanModeCase(tab: 'الخطة السنوية', header: 'مقدمة المنهج التكاملي'),
+        _PlanModeCase(
+            tab: 'الخطة السنوية', header: 'الجزء الأول — الفصل الدراسي الأول'),
         _PlanModeCase(tab: 'الخطة اليومية', header: 'اليوم الأول'),
       ]) {
         final state = createTestAppState(
@@ -352,8 +353,12 @@ void main() {
     await _settle(tester);
 
     // Daily topic: open the first card's editor popup.
-    await tester.tap(find.text('الخطة اليومية').first, warnIfMissed: false);
+    final tabBar = find.byType(TabBar);
+    await tester.tap(
+      find.descendant(of: tabBar, matching: find.text('الخطة اليومية')),
+    );
     await _settle(tester);
+    await tester.ensureVisible(find.byTooltip('تعديل').first);
     await tester.tap(find.byTooltip('تعديل').first);
     await _settle(tester);
     expect(find.text('تحرير اليوم'), findsOneWidget);
@@ -366,8 +371,11 @@ void main() {
     expect(find.text('تحرير اليوم'), findsNothing);
 
     // Annual unit: open its editor popup as well.
-    await tester.tap(find.text('الخطة السنوية').first, warnIfMissed: false);
+    await tester.tap(
+      find.descendant(of: tabBar, matching: find.text('الخطة السنوية')),
+    );
     await _settle(tester);
+    await tester.ensureVisible(find.byTooltip('تعديل').first);
     await tester.tap(find.byTooltip('تعديل').first);
     await _settle(tester);
     expect(find.text('تحرير الوحدة'), findsOneWidget);
